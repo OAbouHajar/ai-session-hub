@@ -1,70 +1,135 @@
-# Copilot Session Hub
+# AI Session Hub
 
-A local-first way to find past GitHub Copilot CLI work, understand where it stopped, and continue it.
+**Local-first continuity for AI coding sessions. Find past work, understand where it stopped, and continue without reconstructing the whole conversation.**
 
+> AI Session Hub currently integrates with **GitHub Copilot CLI**. The project is being designed toward a provider-neutral model for additional AI CLI tools.
+>
 > This is an independent open source project and is not an official GitHub or Microsoft product.
 
-![Copilot Session Hub demo](docs/session-hub-demo.png)
+![AI Session Hub demo](docs/session-hub-demo.png)
 
-_Demo data is fictional. The dashboard runs locally and displays your own session history._
+_The screenshot uses fictional demo data. Your dashboard and session history remain local._
 
-## What it provides
+## Why this project matters
 
-- Automatic session tracking through supported Copilot lifecycle hooks.
-- A persistent session browser at `http://127.0.0.1:43120`.
-- `/wrap` checkpoints containing summaries, last actions, next steps, decisions, and unresolved questions.
-- `/wrap-with-next` checkpoints that ask for and preserve an explicit todo list for the next session.
-- One normal search across session titles, summaries, actions, projects, working folders, and worked-on file names.
-- A recall-first session view showing what the work was, what happened, where it stopped, and the recommended next action.
-- Worked-on file evidence synchronized from local Copilot session history when available.
-- Filters, pinning, archiving, editable checkpoints, task checklists, activity history, resume, and open-folder actions.
-- Explicitly tracked project sessions, each with its own Kanban board using Backlog, Next, In Progress, Blocked, and Done states.
-- Work item links attached directly to the project session. Azure DevOps Epic, Feature, PBI, Task, and Bug URLs are supported.
-- `/kanban` AI coaching that derives and orders only unfinished work from the current chat history.
-- `/kanban-update` board reconciliation and `/kanban-process` coached execution of the next actionable task.
-- Header command palette with Session Hub commands plus useful Copilot context, usage, compact, share, and fork shortcuts.
-- Automatic startup at Windows sign-in and automatic recovery if a hook runs while the service is stopped.
-- Local SQLite storage under `%LOCALAPPDATA%\CopilotSessionHub`.
+AI coding sessions are productive but easy to lose:
 
-The service binds only to `127.0.0.1`. It does not upload session data.
+- the useful context is trapped in an old terminal session;
+- you remember the task, file, or project, but not the session ID;
+- a long conversation ends without a reliable handoff;
+- the next steps disappear between sessions;
+- project work becomes scattered across many AI conversations.
 
-## Install
+AI Session Hub turns session history into a searchable continuity layer. It answers:
 
-Requires Node.js 22.5 or newer and GitHub Copilot CLI.
+> “I worked with an AI coding assistant on this before. What happened, where did we stop, and how do I continue?”
 
-### Install with Copilot (recommended)
+## What you get
+
+- **Automatic session tracking** through supported GitHub Copilot CLI lifecycle hooks.
+- **Wrapped-session focus** so high-quality continuity checkpoints appear first.
+- **Normal search** across titles, summaries, actions, tasks, projects, folders, and worked-on files.
+- **Recall-first session details** with summary, last completed action, recommended next action, and resume command.
+- **Explicit next-session todos** with `/wrap-with-next`.
+- **Questions and actions history** with system noise removed and skill calls humanized.
+- **Worked-on file evidence** imported from local session history when available.
+- **Sessions and Board views** for recall and optional Kanban project tracking.
+- **Work item links**, currently supporting Azure DevOps work-item URLs.
+- **Local-only storage** and a loopback-only dashboard at `http://127.0.0.1:43120`.
+- **Safe upgrades** that preserve existing SQLite session data.
+
+## Quick start
+
+### Option 1: Ask Copilot to install it
 
 Copy this prompt into GitHub Copilot CLI:
 
 ```text
-Install Copilot Session Hub from https://github.com/OAbouHajar/copilot-session-hub on this Windows machine. Verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; clone the latest main branch into a temporary directory; read the README and installer; run `pwsh -File .\scripts\install.ps1 -NoOpen`; preserve existing data under `%LOCALAPPDATA%\CopilotSessionHub`; verify `http://127.0.0.1:43120/api/health` returns `ok: true`; open the dashboard; and report the result. Proceed autonomously and only ask before administrator-required or destructive actions.
+Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this Windows machine. Verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; clone the latest main branch into a temporary directory; read the README and installer; run `pwsh -File .\scripts\install.ps1 -NoOpen`; do not delete or overwrite existing data under `%LOCALAPPDATA%\CopilotSessionHub`; verify `http://127.0.0.1:43120/api/health` returns `ok: true`; open the dashboard; and report the result. Proceed autonomously and only ask before administrator-required or destructive actions.
 ```
 
-The [full installation prompt](docs/copilot-install-prompt.md) includes detailed recovery and verification steps.
+The [full Copilot installation prompt](docs/copilot-install-prompt.md) includes prerequisite recovery, plugin-lock handling, and verification steps.
 
-For a first installation, the prompt completes setup automatically. When upgrading from inside an active Session Hub Copilot session, Windows may lock the loaded plugin files; the installer will update the application and print one exact PowerShell command to run after exiting Copilot.
+### Option 2: Install manually
 
-### Install manually
+Requirements:
+
+- Windows
+- Git
+- PowerShell 7 (`pwsh`)
+- Node.js 22.5 or newer
+- GitHub Copilot CLI, signed in
 
 ```powershell
+git clone https://github.com/OAbouHajar/ai-session-hub.git
+cd ai-session-hub
 pwsh -File .\scripts\install.ps1
 ```
 
-Restart Copilot CLI after installation so its plugin cache and hooks are loaded.
+Restart Copilot CLI after installation so the plugin hooks and commands are loaded.
 
-## Use
+## How to use it
 
-1. Start or resume a Copilot CLI session.
-2. Work normally; lifecycle activity appears in Session Hub.
-3. Enter `/wrap` to infer unfinished work, or `/wrap-with-next` to provide your own next-session todo list.
-4. When you return, search for anything you remember: the task, project, folder, action, or file name.
-5. Review where you stopped, then choose **Resume this session**.
+1. Start or resume a GitHub Copilot CLI session.
+2. Work normally; the lifecycle appears in AI Session Hub.
+3. Before stopping, use one of the wrap commands:
 
-The `sessionEnd` hook preserves lifecycle state after an unexpected exit, but only `/wrap` can produce a high-quality AI summary because it runs while Copilot still has the conversation context.
+| Command | Purpose |
+|---|---|
+| `/wrap` | Save a continuity checkpoint inferred from the actual session history |
+| `/wrap-with-next` | Save the checkpoint plus your explicit next-session todo list |
+| `/kanban` | Generate an ordered plan from genuinely unfinished work |
+| `/kanban-update` | Reconcile board state with completed, blocked, and discovered work |
+| `/kanban-process` | Select and execute the next actionable board item |
 
-Projects, Kanban boards, linked work items, metrics, files, and activity remain available as secondary context. The primary workflow is always finding a session and continuing it.
+4. Return later and search for anything you remember: a task, project, folder, action, or filename.
+5. Review the stopping point and next action.
+6. Resume from the dashboard or copy:
 
-Worked-on file paths remain local. Session Hub stores the original path for local search but returns only workspace-relative paths, or a basename for files outside the workspace, to the dashboard.
+```text
+agency copilot --resume=<session-id>
+```
+
+## How it works
+
+```text
+GitHub Copilot CLI hooks
+          |
+          v
+Local Node.js service on 127.0.0.1
+          |
+          v
+Local SQLite continuity store
+          |
+          v
+Searchable browser dashboard
+```
+
+- Hook payloads track session lifecycle events.
+- `/wrap` runs while conversation context is still available and writes the semantic handoff.
+- Existing Copilot CLI session history is imported read-only.
+- File paths are stored locally for search, but the browser receives workspace-relative paths or basenames.
+- The service does not upload session data.
+
+## Data and privacy
+
+- Service binding: `127.0.0.1` only.
+- Session database: `%LOCALAPPDATA%\CopilotSessionHub\sessions.db`.
+- Installation directory: `%LOCALAPPDATA%\Programs\CopilotSessionHub`.
+- Existing session data is preserved during reinstall and uninstall.
+- Request Host/Origin checks and anti-framing headers protect local actions.
+- No cloud database, analytics service, or external upload is required.
+
+## Upgrade
+
+Pull the latest version and rerun the installer:
+
+```powershell
+git pull
+pwsh -File .\scripts\install.ps1 -NoOpen
+```
+
+If an active Copilot session locks the loaded plugin files, the installer updates the application, keeps the dashboard available, and prints the exact retry command to run after exiting Copilot.
 
 ## Development
 
@@ -73,13 +138,22 @@ npm start
 npm test
 ```
 
+The project uses Node.js built-ins, including `node:http`, `node:sqlite`, and the native test runner. There are no runtime npm dependencies.
+
+## Roadmap
+
+- Provider-neutral session and resume adapters.
+- Support for additional AI CLI session-history formats.
+- Generic work-item providers beyond the current Azure DevOps URL integration.
+- Optional packaged installer and release artifacts.
+
 ## Uninstall
 
 ```powershell
 pwsh -File .\scripts\uninstall.ps1
 ```
 
-Uninstalling leaves the SQLite session data in place.
+Uninstalling leaves the local SQLite session data in place.
 
 ## License
 

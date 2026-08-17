@@ -439,7 +439,7 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(app, /\/wrap-with-next/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);
-  assert.match(installPrompt, /Install Copilot Session Hub/);
+  assert.match(installPrompt, /Install AI Session Hub/);
   assert.match(installPrompt, /do not delete or overwrite/i);
   assert.match(installPrompt, /active Copilot session is locking/i);
   assert.match(installPrompt, /api\/health/);

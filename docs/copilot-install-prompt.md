@@ -1,9 +1,9 @@
-# Install Copilot Session Hub with Copilot
+# Install AI Session Hub with Copilot
 
 Copy the prompt below into GitHub Copilot CLI. Copilot will clone the repository, run the installer, verify the service, and report the dashboard URL.
 
 ```text
-Install Copilot Session Hub from https://github.com/OAbouHajar/copilot-session-hub on this Windows machine.
+Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this Windows machine.
 
 Do the setup end-to-end:
 1. Verify that git, PowerShell 7 (`pwsh`), Node.js 22.5 or newer, and GitHub Copilot CLI are installed.

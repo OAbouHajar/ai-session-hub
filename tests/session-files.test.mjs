@@ -432,11 +432,14 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(html, /Files involved/);
   assert.match(html, /Questions and actions/);
   assert.match(html, /id="boardView"/);
+  assert.equal((html.match(/data-add-board-task=/g) || []).length, 5);
   assert.match(html, /Resume this session/);
   assert.match(html, /id="sessionIdChip"/);
   assert.match(app, /No sessions match that search/);
   assert.match(app, /resumeCommand/);
   assert.match(app, /providerName/);
+  assert.match(app, /function openBoardTaskForm/);
+  assert.match(app, /body: \{ text, status \}/);
   assert.match(app, /\/wrap-with-next/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);

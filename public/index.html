@@ -269,11 +269,26 @@
           <span><b id="boardDoneCount">0</b> done</span>
         </div>
         <div id="kanbanBoard" class="kanban-board">
-          <section class="kanban-column" data-status="backlog"><header><span>Backlog</span><b data-count="backlog">0</b></header><div class="kanban-cards" data-dropzone="backlog"></div></section>
-          <section class="kanban-column" data-status="next"><header><span>Next</span><b data-count="next">0</b></header><div class="kanban-cards" data-dropzone="next"></div></section>
-          <section class="kanban-column" data-status="in_progress"><header><span>In progress</span><b data-count="in_progress">0</b></header><div class="kanban-cards" data-dropzone="in_progress"></div></section>
-          <section class="kanban-column" data-status="blocked"><header><span>Blocked</span><b data-count="blocked">0</b></header><div class="kanban-cards" data-dropzone="blocked"></div></section>
-          <section class="kanban-column" data-status="done"><header><span>Done</span><b data-count="done">0</b></header><div class="kanban-cards" data-dropzone="done"></div></section>
+          <section class="kanban-column" data-status="backlog">
+            <header><span>Backlog</span><div><b data-count="backlog">0</b><button class="column-add-task" data-add-board-task="backlog" aria-label="Add task to Backlog">+</button></div></header>
+            <div class="kanban-cards" data-dropzone="backlog"></div>
+          </section>
+          <section class="kanban-column" data-status="next">
+            <header><span>Next</span><div><b data-count="next">0</b><button class="column-add-task" data-add-board-task="next" aria-label="Add task to Next">+</button></div></header>
+            <div class="kanban-cards" data-dropzone="next"></div>
+          </section>
+          <section class="kanban-column" data-status="in_progress">
+            <header><span>In progress</span><div><b data-count="in_progress">0</b><button class="column-add-task" data-add-board-task="in_progress" aria-label="Add task to In progress">+</button></div></header>
+            <div class="kanban-cards" data-dropzone="in_progress"></div>
+          </section>
+          <section class="kanban-column" data-status="blocked">
+            <header><span>Blocked</span><div><b data-count="blocked">0</b><button class="column-add-task" data-add-board-task="blocked" aria-label="Add task to Blocked">+</button></div></header>
+            <div class="kanban-cards" data-dropzone="blocked"></div>
+          </section>
+          <section class="kanban-column" data-status="done">
+            <header><span>Done</span><div><b data-count="done">0</b><button class="column-add-task" data-add-board-task="done" aria-label="Add task to Done">+</button></div></header>
+            <div class="kanban-cards" data-dropzone="done"></div>
+          </section>
         </div>
       </section>
     </main>

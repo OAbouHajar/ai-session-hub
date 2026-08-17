@@ -6,9 +6,9 @@
 >
 > This is an independent open source project and is not an official GitHub or Microsoft product.
 
-![AI Session Hub demo](docs/session-hub-demo.png)
+![AI Session Hub Sessions view](screenshots/sessions-screenshot.png)
 
-_The screenshot uses fictional demo data. Your dashboard and session history remain local._
+_The Sessions view keeps the goal, completed work, stopping point, next action, and resume control together._
 
 ## Why this project matters
 
@@ -40,9 +40,9 @@ AI Session Hub turns session history into a searchable continuity layer. It answ
 
 ## Quick start
 
-### Option 1: Ask Copilot to install it
+### Option 1: Ask your AI CLI to install it
 
-Copy this platform-aware prompt into GitHub Copilot CLI:
+Copy this platform-aware prompt into GitHub Copilot CLI, Claude Code, Codex CLI, or Gemini CLI:
 
 ```text
 Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
@@ -55,7 +55,7 @@ Detect the operating system first and use the matching setup:
 Verify that each detected AI CLI is usable and signed in. Clone the latest `main` branch into a temporary directory, read the README and the matching installer before running it, and do not delete or overwrite existing session data or unrelated AI CLI settings. If a prerequisite is missing, report the exact official installation command or link. If a plugin or hook cannot be refreshed because an active AI CLI session is using it, report the installer's exact retry command and do not claim success. After installation, verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining action. Proceed autonomously and only ask before administrator-required or destructive actions.
 ```
 
-The full Copilot installation prompts for [macOS](docs/copilot-install-prompt-macos.md) and [Windows](docs/copilot-install-prompt.md) include prerequisite recovery, plugin-lock handling, and verification steps.
+The full AI-assisted installation prompts for [macOS](docs/copilot-install-prompt-macos.md) and [Windows](docs/copilot-install-prompt.md) include prerequisite recovery, hook or plugin handling, and verification steps.
 
 ### Option 2: Install manually
 
@@ -133,9 +133,9 @@ Any session can become a tracked project without losing its continuity view:
 
 The board uses **Backlog**, **Next**, **In progress**, **Blocked**, and **Done** columns.
 
-![AI Session Hub Board demo](docs/session-hub-board-demo.png)
+![AI Session Hub Board view](screenshots/board-screenshot.png)
 
-_Board demo data is fictional._
+_The Board view organizes tracked project tasks into Backlog, Next, In progress, Blocked, and Done._
 
 ## How it works
 
@@ -199,8 +199,8 @@ The project uses Node.js built-ins, including `node:http`, `node:sqlite`, and th
 
 ## Roadmap
 
-- Provider-neutral session and resume adapters.
-- Support for additional AI CLI session-history formats.
+- Provider-specific historical session import beyond Copilot CLI.
+- Support for additional AI coding CLI providers.
 - Generic work-item providers beyond the current Azure DevOps URL integration.
 - Optional packaged installer and release artifacts.
 

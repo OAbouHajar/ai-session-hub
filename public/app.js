@@ -64,6 +64,13 @@ const sessionHubCommands = [
     description: "Create a new session from the current context without losing this one."
   }
 ];
+const boardStatusLabels = {
+  backlog: "Backlog",
+  next: "Next",
+  in_progress: "In progress",
+  blocked: "Blocked",
+  done: "Done"
+};
 
 const elements = Object.fromEntries(
   [...document.querySelectorAll("[id]")].map((element) => [element.id, element])
@@ -197,6 +204,9 @@ function bindEvents() {
     localStorage.setItem("sessionHub.view", "sessions");
     await selectSession(state.selectedProjectId);
     applyView();
+  });
+  document.querySelectorAll("[data-add-board-task]").forEach((button) => {
+    button.addEventListener("click", () => openBoardTaskForm(button.dataset.addBoardTask, button));
   });
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -699,8 +709,7 @@ function renderBoardCard(task) {
   meta.append(element("span", "", basename(task.repository) || basename(task.cwd) || "Workspace"));
   const select = document.createElement("select");
   select.className = "card-status";
-  const labels = { backlog: "Backlog", next: "Next", in_progress: "In progress", blocked: "Blocked", done: "Done" };
-  Object.entries(labels).forEach(([value, label]) => {
+  Object.entries(boardStatusLabels).forEach(([value, label]) => {
     const option = document.createElement("option");
     option.value = value;
     option.textContent = label;
@@ -714,6 +723,55 @@ function renderBoardCard(task) {
   meta.append(select);
   card.append(session, text, meta);
   return card;
+}
+
+function openBoardTaskForm(status, trigger) {
+  if (!state.selectedProjectId || !boardStatusLabels[status]) return;
+  const container = document.querySelector(`[data-dropzone="${status}"]`);
+  const existing = container.querySelector(".board-task-form");
+  if (existing) {
+    existing.querySelector("input").focus();
+    return;
+  }
+  document.querySelectorAll(".board-task-form").forEach((form) => form.remove());
+  const form = element("form", "board-task-form");
+  const input = document.createElement("input");
+  input.placeholder = `Add to ${boardStatusLabels[status]}`;
+  input.setAttribute("aria-label", `Task for ${boardStatusLabels[status]}`);
+  input.maxLength = 500;
+  input.required = true;
+  const actions = element("div", "board-task-actions");
+  const cancel = element("button", "button secondary", "Cancel");
+  cancel.type = "button";
+  const submit = element("button", "button primary", "Add");
+  submit.type = "submit";
+  actions.append(cancel, submit);
+  form.append(input, actions);
+  container.prepend(form);
+  cancel.addEventListener("click", () => {
+    form.remove();
+    trigger.focus();
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      form.remove();
+      trigger.focus();
+    }
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    submit.disabled = true;
+    await api(`/api/sessions/${encodeURIComponent(state.selectedProjectId)}/tasks`, {
+      method: "POST",
+      body: { text, status }
+    });
+    await refreshBoard();
+    toast(`Task added to ${boardStatusLabels[status]}`);
+  });
+  input.focus();
 }
 
 function bindBoardDropzones() {

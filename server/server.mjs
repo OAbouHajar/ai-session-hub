@@ -3,7 +3,7 @@ import { readFile, mkdir, access, rename, unlink } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 
@@ -15,10 +15,7 @@ const antiFramingHeaders = {
   "content-security-policy": "frame-ancestors 'none'",
   "x-frame-options": "DENY"
 };
-const dataDir = process.env.COPILOT_SESSION_HUB_DATA ||
-  (process.env.LOCALAPPDATA
-    ? join(process.env.LOCALAPPDATA, "CopilotSessionHub")
-    : join(homedir(), ".copilot-session-hub"));
+const dataDir = process.env.COPILOT_SESSION_HUB_DATA || defaultDataDir();
 const historyPath = process.env.COPILOT_SESSION_HUB_HISTORY_DB || join(homedir(), ".copilot", "session-store.db");
 await mkdir(dataDir, { recursive: true });
 
@@ -520,9 +517,24 @@ function resumeSession(id, response) {
   }
   const cwd = row.cwd;
   const copilotPath = resolveExecutable("copilot");
+  if (!copilotPath) return json(response, 409, { error: "Copilot CLI was not found on PATH" });
+  if (process.platform === "darwin") {
+    const command = `cd ${shellQuote(cwd)} && exec ${shellQuote(copilotPath)} --resume=${shellQuote(id)}`;
+    const child = spawn("osascript", [
+      "-e", "tell application \"Terminal\"",
+      "-e", `do script ${appleScriptString(command)}`,
+      "-e", "activate",
+      "-e", "end tell"
+    ], { detached: true, stdio: "ignore" });
+    child.unref();
+    addEvent(id, "resume-requested", "Resume launched from dashboard", Date.now());
+    return json(response, 200, { ok: true });
+  }
+  if (process.platform !== "win32") {
+    return json(response, 501, { error: "Launching a resume terminal is not supported on this platform" });
+  }
   const pwshPath = resolveExecutable("pwsh.exe") || "pwsh.exe";
   const terminalPath = resolveExecutable("wt.exe");
-  if (!copilotPath) return json(response, 409, { error: "Copilot CLI was not found on PATH" });
   const command = `& '${escapePowerShellLiteral(copilotPath)}' --resume='${escapePowerShellLiteral(id)}'`;
   const executable = terminalPath || pwshPath;
   const args = terminalPath
@@ -541,6 +553,12 @@ function resumeSession(id, response) {
 
 function resolveExecutable(command) {
   try {
+    if (process.platform !== "win32") {
+      return execFileSync("/usr/bin/which", [command], {
+        encoding: "utf8",
+        timeout: 2000
+      }).trim() || null;
+    }
     if (command === "copilot") {
       return execFileSync("pwsh.exe", ["-NoProfile", "-Command", "(Get-Command copilot -ErrorAction Stop).Source"], {
         encoding: "utf8",
@@ -562,13 +580,37 @@ function escapePowerShellLiteral(value) {
   return String(value).replaceAll("'", "''");
 }
 
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+}
+
+function appleScriptString(value) {
+  return `"${String(value).replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`;
+}
+
 function openFolder(id, response) {
   const row = db.prepare("SELECT cwd FROM sessions WHERE id = ?").get(id);
   if (!row) return json(response, 404, { error: "Session not found" });
   if (!existsSync(row.cwd)) return json(response, 409, { error: "Working directory no longer exists" });
-  const child = spawn("explorer.exe", [row.cwd], { detached: true, windowsHide: true, stdio: "ignore" });
+  const executable = process.platform === "darwin" ? "open" : "explorer.exe";
+  if (!["darwin", "win32"].includes(process.platform)) {
+    return json(response, 501, { error: "Opening a working directory is not supported on this platform" });
+  }
+  const child = spawn(executable, [row.cwd], { detached: true, windowsHide: true, stdio: "ignore" });
   child.unref();
   json(response, 200, { ok: true });
+}
+
+function defaultDataDir() {
+  if (process.env.LOCALAPPDATA) return join(process.env.LOCALAPPDATA, "CopilotSessionHub");
+  if (platform() === "darwin") {
+    const current = join(homedir(), "Library", "Application Support", "CopilotSessionHub");
+    const legacy = join(homedir(), ".copilot-session-hub");
+    return existsSync(join(legacy, "sessions.db")) && !existsSync(join(current, "sessions.db"))
+      ? legacy
+      : current;
+  }
+  return join(homedir(), ".copilot-session-hub");
 }
 
 function openEventStream(request, response) {

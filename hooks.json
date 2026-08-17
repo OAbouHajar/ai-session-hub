@@ -4,6 +4,7 @@
     "sessionStart": [
       {
         "type": "command",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" sessionStart",
         "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionStart",
         "timeoutSec": 8
       }
@@ -11,6 +12,7 @@
     "agentStop": [
       {
         "type": "command",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" agentStop",
         "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" agentStop",
         "timeoutSec": 8
       }
@@ -18,6 +20,7 @@
     "sessionEnd": [
       {
         "type": "command",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" sessionEnd",
         "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionEnd",
         "timeoutSec": 8
       }
@@ -25,6 +28,7 @@
     "preCompact": [
       {
         "type": "command",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" preCompact",
         "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" preCompact",
         "timeoutSec": 8
       }

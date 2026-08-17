@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 
 const eventName = process.argv[2];
 const input = await readStdin();
@@ -60,12 +61,22 @@ function startServer() {
 }
 
 async function queueEvent() {
-  const dataDir = process.env.LOCALAPPDATA
-    ? join(process.env.LOCALAPPDATA, "CopilotSessionHub")
-    : join(homedir(), ".copilot-session-hub");
+  const dataDir = defaultDataDir();
   const queuePath = join(dataDir, "pending-events.jsonl");
   await mkdir(dataDir, { recursive: true });
   await appendFile(queuePath, `${JSON.stringify({ eventName, payload })}\n`, "utf8");
+}
+
+function defaultDataDir() {
+  if (process.env.LOCALAPPDATA) return join(process.env.LOCALAPPDATA, "CopilotSessionHub");
+  if (platform() === "darwin") {
+    const current = join(homedir(), "Library", "Application Support", "CopilotSessionHub");
+    const legacy = join(homedir(), ".copilot-session-hub");
+    return existsSync(join(legacy, "sessions.db")) && !existsSync(join(current, "sessions.db"))
+      ? legacy
+      : current;
+  }
+  return join(homedir(), ".copilot-session-hub");
 }
 
 async function readStdin() {

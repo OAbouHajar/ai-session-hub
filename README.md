@@ -42,23 +42,40 @@ AI Session Hub turns session history into a searchable continuity layer. It answ
 
 ### Option 1: Ask Copilot to install it
 
-Copy this prompt into GitHub Copilot CLI:
+Copy this platform-aware prompt into GitHub Copilot CLI:
 
 ```text
-Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this Windows machine. Verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; clone the latest main branch into a temporary directory; read the README and installer; run `pwsh -File .\scripts\install.ps1 -NoOpen`; do not delete or overwrite existing data under `%LOCALAPPDATA%\CopilotSessionHub`; verify `http://127.0.0.1:43120/api/health` returns `ok: true`; open the dashboard; and report the result. Proceed autonomously and only ask before administrator-required or destructive actions.
+Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
+
+Detect the operating system first and use the matching setup:
+- On macOS, verify git, Node.js 22.5+, and Copilot CLI; use `./scripts/install.sh --no-open`; and preserve all existing data under `~/Library/Application Support/CopilotSessionHub` or the legacy `~/.copilot-session-hub` location.
+- On Windows, verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; use `pwsh -File .\scripts\install.ps1 -NoOpen`; and preserve all existing data under `%LOCALAPPDATA%\CopilotSessionHub`.
+- On any other operating system, stop and report that it is unsupported.
+
+Verify that Copilot CLI is signed in. Clone the latest `main` branch into a temporary directory, read the README and the matching installer before running it, and do not delete or overwrite existing session data. If a prerequisite is missing, report the exact official installation command or link. If the plugin cannot be refreshed because an active Copilot session is using it, report the installer's exact retry command and do not claim success. After installation, verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version and any remaining action. Proceed autonomously and only ask before administrator-required or destructive actions.
 ```
 
-The [full Copilot installation prompt](docs/copilot-install-prompt.md) includes prerequisite recovery, plugin-lock handling, and verification steps.
+The full Copilot installation prompts for [macOS](docs/copilot-install-prompt-macos.md) and [Windows](docs/copilot-install-prompt.md) include prerequisite recovery, plugin-lock handling, and verification steps.
 
 ### Option 2: Install manually
 
 Requirements:
 
-- Windows
+- macOS or Windows
 - Git
-- PowerShell 7 (`pwsh`)
+- PowerShell 7 (`pwsh`) on Windows
 - Node.js 22.5 or newer
 - GitHub Copilot CLI, signed in
+
+macOS:
+
+```bash
+git clone https://github.com/OAbouHajar/ai-session-hub.git
+cd ai-session-hub
+./scripts/install.sh
+```
+
+Windows:
 
 ```powershell
 git clone https://github.com/OAbouHajar/ai-session-hub.git
@@ -135,15 +152,25 @@ Searchable browser dashboard
 ## Data and privacy
 
 - Service binding: `127.0.0.1` only.
-- Session database: `%LOCALAPPDATA%\CopilotSessionHub\sessions.db`.
-- Installation directory: `%LOCALAPPDATA%\Programs\CopilotSessionHub`.
+- Session database: `~/Library/Application Support/CopilotSessionHub/sessions.db` on macOS or `%LOCALAPPDATA%\CopilotSessionHub\sessions.db` on Windows.
+- Installation directory: `~/Library/Application Support/AI Session Hub/app` on macOS or `%LOCALAPPDATA%\Programs\CopilotSessionHub` on Windows.
 - Existing session data is preserved during reinstall and uninstall.
+- Existing macOS data in the legacy `~/.copilot-session-hub` location continues to be used automatically.
 - Request Host/Origin checks and anti-framing headers protect local actions.
 - No cloud database, analytics service, or external upload is required.
 
 ## Upgrade
 
-Pull the latest version and rerun the installer:
+Pull the latest version and rerun the installer.
+
+macOS:
+
+```bash
+git pull
+./scripts/install.sh --no-open
+```
+
+Windows:
 
 ```powershell
 git pull
@@ -154,7 +181,7 @@ If an active Copilot session locks the loaded plugin files, the installer update
 
 ## Development
 
-```powershell
+```bash
 npm start
 npm test
 ```
@@ -169,6 +196,14 @@ The project uses Node.js built-ins, including `node:http`, `node:sqlite`, and th
 - Optional packaged installer and release artifacts.
 
 ## Uninstall
+
+macOS:
+
+```bash
+./scripts/uninstall.sh
+```
+
+Windows:
 
 ```powershell
 pwsh -File .\scripts\uninstall.ps1

@@ -1,0 +1,150 @@
+#!/bin/bash
+set -euo pipefail
+
+NO_OPEN=false
+case "${1:-}" in
+  "")
+    ;;
+  --no-open)
+    NO_OPEN=true
+    ;;
+  *)
+    echo "Usage: $0 [--no-open]" >&2
+    exit 2
+    ;;
+esac
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "This installer supports macOS only. Use scripts/install.ps1 on Windows." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js 22.5 or newer is required." >&2
+  exit 1
+fi
+NODE_PATH="$(command -v node)"
+NODE_VERSION="$(node --version)"
+if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 5) ? 0 : 1)'; then
+  echo "Node.js 22.5 or newer is required. Found ${NODE_VERSION}." >&2
+  exit 1
+fi
+if ! command -v copilot >/dev/null 2>&1; then
+  echo "GitHub Copilot CLI is required. Install it, sign in, and run this installer again." >&2
+  exit 1
+fi
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+INSTALL_ROOT="$HOME/Library/Application Support/AI Session Hub/app"
+DATA_ROOT="$HOME/Library/Application Support/CopilotSessionHub"
+if [[ -f "$HOME/.copilot-session-hub/sessions.db" && ! -f "$DATA_ROOT/sessions.db" ]]; then
+  DATA_ROOT="$HOME/.copilot-session-hub"
+fi
+LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
+PLIST_PATH="$LAUNCH_AGENTS/com.ai-session-hub.plist"
+LABEL="com.ai-session-hub"
+DOMAIN="gui/$(id -u)"
+SERVER_PATH="$INSTALL_ROOT/server/server.mjs"
+
+launchctl bootout "$DOMAIN" "$PLIST_PATH" >/dev/null 2>&1 || true
+curl --silent --show-error --max-time 2 --request POST \
+  "http://127.0.0.1:43120/api/shutdown" >/dev/null 2>&1 || true
+for _ in {1..20}; do
+  if ! /usr/sbin/lsof -nP -iTCP:43120 -sTCP:LISTEN >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+if /usr/sbin/lsof -nP -iTCP:43120 -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "Port 43120 is still in use. Close the process using it, then run the installer again." >&2
+  exit 1
+fi
+
+mkdir -p "$INSTALL_ROOT" "$DATA_ROOT" "$LAUNCH_AGENTS"
+if [[ "$PROJECT_ROOT" != "$INSTALL_ROOT" ]]; then
+  tar --exclude="./.git" --exclude="./node_modules" -cf - -C "$PROJECT_ROOT" . |
+    tar -xf - -C "$INSTALL_ROOT"
+fi
+
+xml_escape() {
+  printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'
+}
+
+cat > "$PLIST_PATH" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$(xml_escape "$NODE_PATH")</string>
+    <string>$(xml_escape "$SERVER_PATH")</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>$(xml_escape "$INSTALL_ROOT")</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>$(xml_escape "$PATH")</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>$(xml_escape "$DATA_ROOT/server.log")</string>
+  <key>StandardErrorPath</key>
+  <string>$(xml_escape "$DATA_ROOT/server-error.log")</string>
+</dict>
+</plist>
+EOF
+plutil -lint "$PLIST_PATH" >/dev/null
+
+start_service() {
+  launchctl bootout "$DOMAIN" "$PLIST_PATH" >/dev/null 2>&1 || true
+  launchctl bootstrap "$DOMAIN" "$PLIST_PATH"
+  launchctl kickstart -k "$DOMAIN/$LABEL"
+}
+
+copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
+if ! INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
+  start_service
+  cat >&2 <<EOF
+AI Session Hub application files were updated, but the Copilot plugin could not be refreshed.
+This usually means an active Copilot session is using the plugin files.
+
+Exit all Copilot CLI sessions, then run:
+"$INSTALL_ROOT/scripts/install.sh" --no-open
+
+Copilot plugin error:
+$INSTALL_OUTPUT
+EOF
+  exit 1
+fi
+printf '%s\n' "$INSTALL_OUTPUT"
+
+start_service
+HEALTHY=false
+for _ in {1..20}; do
+  sleep 0.25
+  if curl --silent --max-time 2 "http://127.0.0.1:43120/api/health" |
+    grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'; then
+    HEALTHY=true
+    break
+  fi
+done
+if [[ "$HEALTHY" != "true" ]]; then
+  echo "AI Session Hub did not become healthy on http://127.0.0.1:43120." >&2
+  exit 1
+fi
+
+if [[ "$NO_OPEN" != "true" ]]; then
+  open "http://127.0.0.1:43120"
+fi
+
+echo "AI Session Hub installed."
+echo "Dashboard: http://127.0.0.1:43120"
+echo "Data: $DATA_ROOT"
+echo "Restart Copilot CLI so the plugin hooks are loaded."

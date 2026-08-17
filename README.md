@@ -1,6 +1,10 @@
-# AI Session Hub
+<p align="center">
+  <img src="assets/ai-session-hub-logo.svg" alt="AI Session Hub — Find past work. Continue with context." width="720">
+</p>
 
-**Local-first continuity for AI coding sessions. Find past work, understand where it stopped, and continue without reconstructing the conversation.**
+<p align="center"><strong>Local-first continuity for AI coding sessions.</strong></p>
+
+Find past work, understand where it stopped, and continue without reconstructing the conversation.
 
 > Supports **GitHub Copilot CLI**, **Claude Code**, **OpenAI Codex CLI**, and **Google Gemini CLI**.
 >

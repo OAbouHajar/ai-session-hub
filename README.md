@@ -6,6 +6,12 @@
 
 Find past work, understand where it stopped, and continue without reconstructing the conversation.
 
+<p align="center">
+  <a href="https://oabouhajar.github.io/ai-session-hub/"><strong>Visit the website</strong></a>
+  ·
+  <a href="#quick-start">Install AI Session Hub</a>
+</p>
+
 > Supports **GitHub Copilot CLI**, **Claude Code**, **OpenAI Codex CLI**, and **Google Gemini CLI**.
 >
 > Independent open source software; not an official GitHub, Microsoft, Anthropic, OpenAI, or Google product.

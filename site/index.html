@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AI Session Hub remembers your AI coding sessions so you can find past work, resume with context, and keep moving.">
+  <meta property="og:title" content="AI Session Hub">
+  <meta property="og:description" content="Remember. Resume. Continue. Local-first continuity for AI coding sessions.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://oabouhajar.github.io/ai-session-hub/">
+  <meta property="og:image" content="https://oabouhajar.github.io/ai-session-hub/assets/logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#07111d">
+  <title>AI Session Hub — Remember. Resume. Continue.</title>
+  <link rel="canonical" href="https://oabouhajar.github.io/ai-session-hub/">
+  <link rel="icon" href="assets/logo-mark.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="site-brand" href="#" aria-label="AI Session Hub home">
+      <img src="assets/logo-mark.png" alt="">
+      <span>AI Session Hub</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#workflow">How it works</a>
+      <a href="#install">Install</a>
+      <a class="nav-github" href="https://github.com/OAbouHajar/ai-session-hub">View on GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow"><span></span> Local-first continuity for AI coding sessions</p>
+        <h1>Your AI session ended.<br><em>Your context shouldn’t.</em></h1>
+        <p class="hero-lede">Find past work, understand where it stopped, and continue without reconstructing the conversation.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#install">Install with your AI CLI <span aria-hidden="true">→</span></a>
+          <a class="button button-secondary" href="https://github.com/OAbouHajar/ai-session-hub">Explore the repository</a>
+        </div>
+        <p class="hero-note">Free and open source · Runs entirely on your machine</p>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="glow"></div>
+        <img class="hero-logo" src="assets/logo.png" alt="">
+        <div class="session-toast">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Session checkpoint saved</strong>
+            <small>Ready to resume when you are</small>
+          </div>
+          <span class="check">✓</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="provider-strip" aria-label="Supported providers">
+      <p>Works with the AI CLIs you already use</p>
+      <div>
+        <span>GitHub Copilot</span>
+        <span>Claude Code</span>
+        <span>OpenAI Codex</span>
+        <span>Google Gemini</span>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="section-heading">
+        <p class="eyebrow">Stop losing the thread</p>
+        <h2>Every session becomes useful memory</h2>
+        <p>AI Session Hub turns scattered coding sessions into a searchable, resumable record of your work.</p>
+      </div>
+      <div class="feature-grid">
+        <article class="feature-card">
+          <span class="feature-icon">⌕</span>
+          <h3>Find what you remember</h3>
+          <p>Search by task, project, folder, action, or file—even when you cannot remember which session it was in.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon">↗</span>
+          <h3>Resume the right session</h3>
+          <p>Copy the correct provider-specific resume command and continue in the workspace where the work happened.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon">✓</span>
+          <h3>Leave a clear handoff</h3>
+          <p>Save where you stopped, decisions made, open questions, and the next action before context disappears.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon">▦</span>
+          <h3>Turn sessions into projects</h3>
+          <p>Track work across Backlog, Next, In progress, Blocked, and Done with the optional Kanban board.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon">⌂</span>
+          <h3>Keep everything local</h3>
+          <p>Your session index stays in a local SQLite database. Nothing is uploaded by AI Session Hub.</p>
+        </article>
+        <article class="feature-card">
+          <span class="feature-icon">∞</span>
+          <h3>Use more than one AI</h3>
+          <p>Keep one continuity layer across Copilot, Claude, Codex, and Gemini instead of separate mental histories.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="workflow" class="section workflow-section">
+      <div class="section-heading">
+        <p class="eyebrow">A simple daily rhythm</p>
+        <h2>Remember. Resume. Continue.</h2>
+      </div>
+      <ol class="workflow">
+        <li>
+          <span>01</span>
+          <div><h3>Work normally</h3><p>Your supported AI CLI sessions are tracked automatically in the background.</p></div>
+        </li>
+        <li>
+          <span>02</span>
+          <div><h3>Wrap before you leave</h3><p>Ask your assistant to wrap or checkpoint the session with a clear next step.</p></div>
+        </li>
+        <li>
+          <span>03</span>
+          <div><h3>Find it later</h3><p>Search the dashboard using whatever detail you still remember.</p></div>
+        </li>
+        <li>
+          <span>04</span>
+          <div><h3>Continue with context</h3><p>Review the handoff and resume through the matching AI provider.</p></div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="section product">
+      <div class="product-copy">
+        <p class="eyebrow">Built for recall</p>
+        <h2>See exactly where the work stopped</h2>
+        <p>The session view brings the important details together: project, provider, files, decisions, questions, stopping point, and what to do next.</p>
+        <ul>
+          <li>Search across archived session metadata</li>
+          <li>Provider-aware resume commands</li>
+          <li>Clear continuity checkpoints</li>
+        </ul>
+      </div>
+      <div class="screenshot-frame">
+        <img src="screenshots/sessions-screenshot.png" alt="AI Session Hub sessions dashboard showing searchable work history and a session checkpoint">
+      </div>
+    </section>
+
+    <section class="section product product-reverse">
+      <div class="product-copy">
+        <p class="eyebrow">From sessions to delivery</p>
+        <h2>Keep unfinished work moving</h2>
+        <p>Promote a session into a tracked project and organize its next actions without leaving your local workflow.</p>
+        <ul>
+          <li>Five practical workflow states</li>
+          <li>Drag-and-drop task movement</li>
+          <li>AI-assisted planning and reconciliation</li>
+        </ul>
+      </div>
+      <div class="screenshot-frame">
+        <img src="screenshots/board-screenshot.png" alt="AI Session Hub Kanban board with tasks organized by delivery status">
+      </div>
+    </section>
+
+    <section id="install" class="install-section">
+      <div class="install-heading">
+        <p class="eyebrow">Get started</p>
+        <h2>Ask your AI CLI to install it</h2>
+        <p>Copy this prompt into Copilot, Claude, Codex, or Gemini. It detects macOS or Windows, preserves your data and settings, and verifies the result.</p>
+      </div>
+      <div class="prompt-card">
+        <div class="prompt-toolbar">
+          <span><i></i><i></i><i></i></span>
+          <strong>Installation prompt</strong>
+          <button id="copyPrompt" type="button" aria-label="Copy installation prompt">
+            <span class="copy-icon" aria-hidden="true">▣</span>
+            <span class="copy-label">Copy prompt</span>
+          </button>
+        </div>
+        <pre><code id="installPrompt">Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
+
+Detect the operating system first. On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
+
+Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.</code></pre>
+      </div>
+      <div class="install-links">
+        <span>Prefer manual setup?</span>
+        <a href="https://github.com/OAbouHajar/ai-session-hub#quick-start">View macOS and Windows commands →</a>
+      </div>
+    </section>
+
+    <section class="privacy-section">
+      <div class="privacy-mark">⌂</div>
+      <div>
+        <p class="eyebrow">Local by design</p>
+        <h2>Your work stays yours.</h2>
+        <p>The dashboard binds to localhost, session data stays on your machine, and upgrades preserve your existing database.</p>
+      </div>
+      <a class="button button-secondary" href="https://github.com/OAbouHajar/ai-session-hub#data-and-privacy">Read about privacy</a>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand">
+      <img src="assets/logo-mark.png" alt="">
+      <div><strong>AI Session Hub</strong><span>Remember. Resume. Continue.</span></div>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/OAbouHajar/ai-session-hub">GitHub</a>
+      <a href="https://github.com/OAbouHajar/ai-session-hub/tree/main/docs/providers">Provider guides</a>
+      <a href="https://github.com/OAbouHajar/ai-session-hub/issues">Issues</a>
+      <a href="https://github.com/OAbouHajar/ai-session-hub/blob/main/LICENSE">MIT License</a>
+    </div>
+    <p>Independent open source software. Not an official product of any supported AI provider.</p>
+  </footer>
+</body>
+</html>

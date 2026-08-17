@@ -421,12 +421,17 @@ test("returns an actionable conflict when the resume workspace is missing", asyn
 });
 
 test("static UI retains recall-first and secondary-project contracts", async () => {
-  const [html, app, wrapWithNext, installPrompt] = await Promise.all([
+  const [html, app, wrapWithNext, installPrompt, logoMark] = await Promise.all([
     readFile(join(root, "public", "index.html"), "utf8"),
     readFile(join(root, "public", "app.js"), "utf8"),
     readFile(join(root, "commands", "wrap-with-next.md"), "utf8"),
-    readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8")
+    readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8"),
+    readFile(join(root, "public", "logo-mark.png"))
   ]);
+  assert.match(html, /<strong>AI Session Hub<\/strong>/);
+  assert.match(html, /<link rel="icon" href="\/logo-mark\.png"/);
+  assert.match(html, /<img src="\/logo-mark\.png" alt="">/);
+  assert.deepEqual([...logoMark.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.match(html, /Search what you remember/);
   assert.match(html, /Task, project, folder, or file/);
   assert.match(html, /Files involved/);
@@ -468,6 +473,8 @@ test("returns anti-framing headers on UI and API responses", async () => {
       assert.equal(response.headers.get("x-frame-options"), "DENY");
       assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
     }
+    const logo = await fetch(`${server.baseUrl}/logo-mark.png`);
+    assert.equal(logo.headers.get("content-type"), "image/png");
   } finally {
     await stopServer(server, fixture);
   }

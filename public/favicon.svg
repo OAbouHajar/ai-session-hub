@@ -1,4 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="AI Session Hub">
-  <rect width="64" height="64" rx="14" fill="#6fca91"/>
-  <path fill="#101820" d="M21 27v-4c0-9 5-16 11-16s11 7 11 16v4h3c6 0 11 5 11 11v8c0 6-5 11-11 11H18C12 57 7 52 7 46v-8c0-6 5-11 11-11h3Zm7 0h8v-4c0-5-2-8-4-8s-4 3-4 8v4Zm-9 14a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm26 0a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/>
-</svg>

@@ -110,10 +110,10 @@ h1, h2, p { margin-top: 0; }
 .brand > span:nth-child(2) { min-width: 0; }
 .sidebar-close { display: none; margin-left: auto; }
 .brand-mark {
-  flex: 0 0 auto; width: 1.9rem; height: 1.9rem; display: grid; place-items: center;
-  color: var(--cp-accent-fg); background: var(--cp-accent); border-radius: var(--radius-sm);
+  flex: 0 0 auto; width: 2.15rem; height: 2.15rem; display: block; overflow: hidden;
+  background: #07111d; border: 1px solid var(--cp-border); border-radius: var(--radius-sm);
 }
-.brand-mark svg { width: 1.1rem; }
+.brand-mark img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 0.82rem; letter-spacing: -0.01em; }
 .brand small { margin-top: 0.08rem; color: var(--cp-text-muted); font-size: 0.68rem; }

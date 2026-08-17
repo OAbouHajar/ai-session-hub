@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Session Hub Board Demo</title>
+  <link rel="icon" href="../public/logo-mark.png" type="image/png">
   <script>
     (() => {
       const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
@@ -75,7 +76,7 @@
     .app { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
     aside { display: flex; flex-direction: column; padding: 18px 12px; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border); }
     .brand { display: flex; gap: 10px; align-items: center; padding: 0 5px 16px; }
-    .logo { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 0.625rem; color: var(--cp-accent-fg); background: var(--cp-success); font-weight: 800; }
+    .logo { width: 34px; height: 34px; display: block; object-fit: cover; border-radius: 0.625rem; }
     .brand strong, .brand small { display: block; }
     .brand small { margin-top: 2px; color: var(--cp-text-muted); font-size: 11px; }
     .views { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
@@ -127,7 +128,7 @@
 <body>
   <div class="app">
     <aside>
-      <div class="brand"><div class="logo">S</div><div><strong>AI Session Hub</strong><small>Find past work and continue</small></div></div>
+      <div class="brand"><img class="logo" src="../public/logo-mark.png" alt=""><div><strong>AI Session Hub</strong><small>Find past work and continue</small></div></div>
       <div class="views"><div class="view">Sessions</div><div class="view active">Board</div></div>
       <div class="search-label">Search tracked projects</div>
       <div class="search">Project, task, folder, or file</div>

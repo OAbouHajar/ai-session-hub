@@ -32,6 +32,20 @@ The service binds only to `127.0.0.1`. It does not upload session data.
 
 Requires Node.js 22.5 or newer and GitHub Copilot CLI.
 
+### Install with Copilot (recommended)
+
+Copy this prompt into GitHub Copilot CLI:
+
+```text
+Install Copilot Session Hub from https://github.com/OAbouHajar/copilot-session-hub on this Windows machine. Verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; clone the latest main branch into a temporary directory; read the README and installer; run `pwsh -File .\scripts\install.ps1 -NoOpen`; preserve existing data under `%LOCALAPPDATA%\CopilotSessionHub`; verify `http://127.0.0.1:43120/api/health` returns `ok: true`; open the dashboard; and report the result. Proceed autonomously and only ask before administrator-required or destructive actions.
+```
+
+The [full installation prompt](docs/copilot-install-prompt.md) includes detailed recovery and verification steps.
+
+For a first installation, the prompt completes setup automatically. When upgrading from inside an active Session Hub Copilot session, Windows may lock the loaded plugin files; the installer will update the application and print one exact PowerShell command to run after exiting Copilot.
+
+### Install manually
+
 ```powershell
 pwsh -File .\scripts\install.ps1
 ```

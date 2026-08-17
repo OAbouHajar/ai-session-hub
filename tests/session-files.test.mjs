@@ -421,10 +421,11 @@ test("returns an actionable conflict when the resume workspace is missing", asyn
 });
 
 test("static UI retains recall-first and secondary-project contracts", async () => {
-  const [html, app, wrapWithNext] = await Promise.all([
+  const [html, app, wrapWithNext, installPrompt] = await Promise.all([
     readFile(join(root, "public", "index.html"), "utf8"),
     readFile(join(root, "public", "app.js"), "utf8"),
-    readFile(join(root, "commands", "wrap-with-next.md"), "utf8")
+    readFile(join(root, "commands", "wrap-with-next.md"), "utf8"),
+    readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8")
   ]);
   assert.match(html, /Search what you remember/);
   assert.match(html, /Task, project, folder, or file/);
@@ -438,6 +439,10 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(app, /\/wrap-with-next/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);
+  assert.match(installPrompt, /Install Copilot Session Hub/);
+  assert.match(installPrompt, /do not delete or overwrite/i);
+  assert.match(installPrompt, /active Copilot session is locking/i);
+  assert.match(installPrompt, /api\/health/);
   assert.match(app, /File history unavailable/);
   assert.match(app, /function openSidebar/);
   assert.match(app, /function closeSidebar/);

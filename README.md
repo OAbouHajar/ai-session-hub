@@ -4,6 +4,10 @@ A local-first way to find past GitHub Copilot CLI work, understand where it stop
 
 > This is an independent open source project and is not an official GitHub or Microsoft product.
 
+![Copilot Session Hub demo](docs/session-hub-demo.png)
+
+_Demo data is fictional. The dashboard runs locally and displays your own session history._
+
 ## What it provides
 
 - Automatic session tracking through supported Copilot lifecycle hooks.

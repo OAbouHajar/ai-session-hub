@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copilot Session Hub Demo</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; overflow: hidden;
+      background: var(--cp-bg); color: var(--cp-text);
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+    }
+    .app { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
+    aside {
+      display: flex; flex-direction: column; padding: 18px 12px 12px;
+      background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border);
+    }
+    .brand { display: flex; gap: 10px; align-items: center; padding: 0 5px 16px; }
+    .logo {
+      width: 30px; height: 30px; display: grid; place-items: center; border-radius: 0.625rem;
+      color: var(--cp-accent-fg); background: var(--cp-success); font-weight: 800;
+    }
+    .brand strong, .brand small { display: block; }
+    .brand small { margin-top: 2px; color: var(--cp-text-muted); font-size: 11px; }
+    .views { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .view { padding: 8px; border-radius: 7px; color: var(--cp-text-muted); text-align: center; font-weight: 600; }
+    .view.active { background: var(--cp-surface); color: var(--cp-text); }
+    .label { margin: 14px 2px 7px; color: var(--cp-text-soft); font-size: 11px; font-weight: 700; }
+    .search { padding: 10px 11px; color: var(--cp-text-muted); background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .filters { display: flex; gap: 6px; padding: 13px 0; border-bottom: 1px solid var(--cp-border); }
+    .filter { padding: 6px 8px; color: var(--cp-text-muted); border-radius: 7px; font-size: 11px; }
+    .filter.active { color: var(--cp-success); background: color-mix(in srgb, var(--cp-success) 14%, transparent); font-weight: 700; }
+    .list-title { margin: 15px 3px 8px; color: var(--cp-text-muted); font-size: 11px; font-weight: 700; }
+    .sessions { display: grid; gap: 3px; }
+    .session { display: grid; grid-template-columns: 1fr auto; gap: 7px; padding: 10px; border: 1px solid transparent; border-radius: 0.625rem; }
+    .session.active { background: var(--cp-surface); border-color: var(--cp-border); }
+    .session strong, .session span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session strong { font-size: 12px; }
+    .session span { margin-top: 3px; color: var(--cp-text-muted); font-size: 10px; }
+    .session em { color: var(--cp-success); font-size: 10px; font-style: normal; }
+    .session time { color: var(--cp-text-muted); font-size: 10px; white-space: nowrap; }
+    main { padding: 0 28px 30px; overflow: hidden; }
+    .top { display: flex; align-items: center; justify-content: space-between; height: 60px; border-bottom: 1px solid var(--cp-border); }
+    .top strong, .top span { display: block; }
+    .top span { color: var(--cp-text-muted); font-size: 10px; margin-top: 2px; }
+    .commands { color: var(--cp-text-muted); font-weight: 600; }
+    .content { max-width: 1120px; margin: 0 auto; padding-top: 28px; }
+    .meta { display: flex; gap: 8px; align-items: center; color: var(--cp-text-muted); font-size: 10px; }
+    .status { padding: 5px 8px; color: var(--cp-success); background: color-mix(in srgb, var(--cp-success) 14%, transparent); border-radius: 99px; font-weight: 700; }
+    h1 { margin: 12px 0 8px; font-size: 28px; letter-spacing: -0.03em; }
+    .summary { max-width: 1000px; margin: 0; color: var(--cp-text-soft); font-size: 14px; line-height: 1.6; }
+    .tags { display: flex; gap: 7px; margin-top: 14px; }
+    .tag { padding: 6px 9px; border: 1px solid var(--cp-border); border-radius: 99px; font-size: 10px; }
+    .folder { color: var(--cp-warning); }
+    .branch { color: var(--cp-accent); }
+    .work { color: var(--cp-link); }
+    .story { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; overflow: hidden; }
+    .story article { min-height: 150px; padding: 20px; }
+    .story article + article { border-left: 1px solid var(--cp-border); }
+    .story label { color: var(--cp-text-muted); font-size: 10px; font-weight: 700; }
+    .story p { margin: 16px 0 0; color: var(--cp-text-soft); font-size: 14px; line-height: 1.55; }
+    .story article:last-child p { color: var(--cp-text); font-weight: 600; }
+    .resume { display: inline-block; margin-top: 15px; padding: 10px 14px; color: var(--cp-accent-fg); background: var(--cp-success); border-radius: 0.625rem; font-weight: 700; }
+    .context-head { display: flex; justify-content: space-between; margin-top: 20px; padding: 12px 0; border-bottom: 1px solid var(--cp-border); }
+    .context-head strong { font-size: 13px; }
+    .context-head span { color: var(--cp-text-muted); font-size: 10px; }
+    .section { padding: 16px 0; border-bottom: 1px solid var(--cp-border); }
+    .section b { display: block; color: var(--cp-success); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .section h2 { margin: 4px 0 9px; font-size: 14px; }
+    .task { padding: 9px 0; color: var(--cp-text-soft); border-top: 1px solid var(--cp-border); }
+    .task:first-of-type { border-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand"><div class="logo">S</div><div><strong>Session Hub</strong><small>Find past work and continue</small></div></div>
+      <div class="views"><div class="view active">Sessions</div><div class="view">Board</div></div>
+      <div class="label">Search what you remember</div>
+      <div class="search">Task, project, folder, or file</div>
+      <div class="filters"><span class="filter active">Wrapped 8</span><span class="filter">Active 2</span><span class="filter">Paused 14</span></div>
+      <div class="list-title">Recent work</div>
+      <div class="sessions">
+        <div class="session active"><div><strong>Improve checkout reliability</strong><span>storefront-api</span><em>Wrapped with 3 next steps</em></div><time>just now</time></div>
+        <div class="session"><div><strong>Add OAuth callback validation</strong><span>identity-gateway</span><em>Matched file: callback.ts</em></div><time>18m</time></div>
+        <div class="session"><div><strong>Refactor invoice export</strong><span>billing-worker</span><em>Wrapped with 1 next step</em></div><time>2h</time></div>
+        <div class="session"><div><strong>Investigate flaky integration test</strong><span>notification-service</span><em>Matched task: isolate timeout</em></div><time>1d</time></div>
+        <div class="session"><div><strong>Document local development setup</strong><span>developer-portal</span><em>Wrapped and ready to resume</em></div><time>2d</time></div>
+      </div>
+    </aside>
+    <main>
+      <div class="top"><div><strong>Session details</strong><span>What happened and where to continue</span></div><div class="commands">Commands ···</div></div>
+      <div class="content">
+        <div class="meta"><span class="status">Wrapped</span><span>Updated just now</span><span>Imported</span></div>
+        <h1>Improve checkout reliability</h1>
+        <p class="summary">Traced intermittent payment failures, added idempotency protection to the checkout handler, and verified the retry path. The session is wrapped with a focused list of follow-up work.</p>
+        <div class="tags"><span class="tag folder">storefront-api</span><span class="tag branch">feature/checkout-retry</span><span class="tag work">Work item #142</span><span class="tag">Session ID: a81f…42b9</span></div>
+        <div class="story">
+          <article><label>Where you left off</label><p>The checkout handler now safely retries duplicate payment requests and all targeted tests pass.</p></article>
+          <article><label>Continue from here</label><p>Add an end-to-end test for the delayed provider response.</p><span class="resume">Resume this session →</span></article>
+        </div>
+        <div class="context-head"><strong>More context</strong><span>Files, checklist, activity, metrics, and linked work</span></div>
+        <div class="section"><b>Next actions</b><h2>Checklist</h2><div class="task">□ Add the delayed provider response test</div><div class="task">□ Update the checkout runbook</div></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

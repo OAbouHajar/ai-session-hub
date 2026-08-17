@@ -435,7 +435,7 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(html, /Resume this session/);
   assert.match(html, /id="sessionIdChip"/);
   assert.match(app, /No sessions match that search/);
-  assert.match(app, /agency copilot --resume=/);
+  assert.match(app, /copilot --resume=/);
   assert.match(app, /\/wrap-with-next/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);

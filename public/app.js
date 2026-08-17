@@ -355,7 +355,7 @@ function renderDetail() {
   elements.repoChip.title = session.cwd || "No working directory";
   elements.branchChip.querySelector("span").textContent = session.branch || "No branch";
   elements.sessionIdChip.querySelector("span").textContent = `Session ID: ${shortSessionId(session.id)}`;
-  elements.sessionIdChip.title = `Copy agency copilot --resume=${session.id}`;
+  elements.sessionIdChip.title = `Copy copilot --resume=${session.id}`;
   elements.sessionDuration.textContent = formatDuration(session.startedAt, session.endedAt || Date.now());
   renderSessionMetrics(session.metrics);
   elements.trackProjectButton.classList.toggle("tracked", session.isProject);
@@ -802,7 +802,7 @@ async function resumeSelected() {
 
 async function copyResumeCommand() {
   if (!state.selected) return;
-  const command = `agency copilot --resume=${state.selected.id}`;
+  const command = `copilot --resume=${state.selected.id}`;
   try {
     await navigator.clipboard.writeText(command);
     toast("Resume command copied");

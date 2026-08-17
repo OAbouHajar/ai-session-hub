@@ -87,7 +87,7 @@ Restart Copilot CLI after installation so the plugin hooks and commands are load
 6. Resume from the dashboard or copy:
 
 ```text
-agency copilot --resume=<session-id>
+copilot --resume=<session-id>
 ```
 
 ## Manage a session as a project board

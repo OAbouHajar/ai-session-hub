@@ -1,0 +1,23 @@
+{
+  "name": "copilot-session-hub",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Local-first continuity dashboard for GitHub Copilot CLI sessions",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OAbouHajar/copilot-session-hub.git"
+  },
+  "homepage": "https://github.com/OAbouHajar/copilot-session-hub#readme",
+  "bugs": {
+    "url": "https://github.com/OAbouHajar/copilot-session-hub/issues"
+  },
+  "scripts": {
+    "start": "node server/server.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

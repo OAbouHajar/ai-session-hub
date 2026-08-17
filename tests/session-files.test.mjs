@@ -1,0 +1,652 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+let nextPort = 44000 + Math.floor(Math.random() * 1000);
+
+test("synchronizes files, exposes safe paths, and searches archived sessions", async () => {
+  const fixture = await createFixture();
+  const sessionId = "recall-files";
+  createHistory(fixture.historyPath, {
+    sessions: [{
+      id: sessionId,
+      cwd: "C:\\repo",
+      repository: "C:\\repo",
+      summary: "Recall the payment migration"
+    }],
+    files: [
+      { sessionId, path: "C:\\repo\\src\\inside.js", toolName: "edit", turnIndex: 2 },
+      { sessionId, path: "D:\\private\\outside.js", toolName: "view", turnIndex: 3 }
+    ],
+    questions: [
+      { sessionId, text: "/copilot-session-hub:session-wrap", turnIndex: 0 },
+      { sessionId, text: "<skill-context name=\"session-wrap\">Internal skill instructions</skill-context>", turnIndex: 1 },
+      { sessionId, text: "How can I finish the payment migration?", turnIndex: 2 },
+      { sessionId, text: "Can you add tests for the retry path?", turnIndex: 3 }
+    ]
+  });
+
+  const server = await startServer(fixture);
+  try {
+    const imported = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(imported.imported, 1, `${JSON.stringify(imported)} ${server.getStderr()}`);
+    assert.equal(imported.fileSessions, 1);
+
+    await request(server, `/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: { archived: true }
+    });
+
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "current");
+    assert.equal(detail.initialQuestion, "How can I finish the payment migration?");
+    assert.deepEqual(detail.questions, [
+      "Session Wrap skill was called.",
+      "How can I finish the payment migration?",
+      "Can you add tests for the retry path?"
+    ]);
+    assert.equal(detail.fileCount, 2);
+    assert.deepEqual(
+      detail.files.map(({ displayPath, outsideWorkspace }) => ({ displayPath, outsideWorkspace })),
+      [
+        { displayPath: "src/inside.js", outsideWorkspace: false },
+        { displayPath: "outside.js", outsideWorkspace: true }
+      ]
+    );
+    for (const file of detail.files) {
+      assert.equal("filePath" in file, false);
+      assert.equal("file_path" in file, false);
+      assert.equal("pathKey" in file, false);
+    }
+
+    const results = await request(server, "/api/sessions?filter=open&q=outside.js");
+    assert.equal(results.length, 1);
+    assert.equal(results[0].id, sessionId);
+    assert.deepEqual(results[0].searchMatch, { type: "file", text: "outside.js" });
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("searches task text across archived history and preserves project state", async () => {
+  const fixture = await createFixture();
+  const server = await startServer(fixture);
+  const sessionId = "task-recall";
+  try {
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId, cwd: process.cwd(), timestamp: Date.now(), source: "new" }
+    });
+    await request(server, `/api/sessions/${sessionId}/tasks`, {
+      method: "POST",
+      body: { text: "Reconcile lunar invoice queue" }
+    });
+    await request(server, `/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: { archived: true, isProject: true }
+    });
+
+    const results = await request(server, "/api/sessions?filter=open&q=LUNAR");
+    assert.equal(results.length, 1);
+    assert.equal(results[0].id, sessionId);
+    assert.equal(results[0].isProject, true);
+    assert.deepEqual(results[0].searchMatch, {
+      type: "task",
+      text: "Reconcile lunar invoice queue"
+    });
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("searches every recall metadata field case-insensitively", async () => {
+  const fixture = await createFixture();
+  const sessionId = "metadata-recall";
+  createHistory(fixture.historyPath, {
+    sessions: [{
+      id: sessionId,
+      cwd: "C:\\work\\rare-folder",
+      repository: "C:\\repos\\NebulaProject",
+      summary: "Migrate the stellar billing service"
+    }, {
+      id: "unrelated-metadata",
+      cwd: "C:\\work\\ordinary",
+      repository: "C:\\repos\\OrdinaryProject",
+      summary: "Routine maintenance"
+    }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/import-history", { method: "POST" });
+    await request(server, `/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: {
+        title: "Nebula_100% Migration",
+        summary: "Migrate the stellar billing service",
+        lastAction: "Completed the ORBIT adapter",
+        nextAction: "Validate the COMET deployment",
+        archived: true
+      }
+    });
+
+    for (const query of ["nebula_100% migration", "stellar billing", "rare-folder", "nebulaproject", "orbit adapter", "comet deployment"]) {
+      const results = await request(server, `/api/sessions?filter=open&q=${encodeURIComponent(query)}`);
+      assert.equal(results.some((session) => session.id === sessionId), true, `Expected match for ${query}`);
+    }
+    assert.equal((await request(server, "/api/sessions?filter=open&q=%25")).length, 1);
+    assert.equal((await request(server, "/api/sessions?filter=open&q=_")).length, 1);
+    assert.deepEqual(await request(server, "/api/sessions?filter=open&q=unknown-recall-term"), []);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("marks uncached sessions unavailable when the source database is absent", async () => {
+  const fixture = await createFixture();
+  const server = await startServer(fixture);
+  const sessionId = "missing-source";
+  try {
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId, cwd: process.cwd(), timestamp: Date.now(), source: "new" }
+    });
+    const result = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(result.available, false);
+    assert.equal(result.error, "SOURCE_DB_UNAVAILABLE");
+
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "unavailable");
+    assert.equal(detail.fileCount, 0);
+    assert.deepEqual(detail.files, []);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("preserves cached files and marks them stale when the source disappears", async () => {
+  const fixture = await createFixture();
+  const sessionId = "stale-cache";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Cached work" }],
+    files: [{ sessionId, path: "C:\\repo\\src\\cached.js", toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/import-history", { method: "POST" });
+    const before = await request(server, `/api/sessions/${sessionId}`);
+    await unlink(fixture.historyPath);
+
+    const failed = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(failed.error, "SOURCE_DB_UNAVAILABLE");
+    const after = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(after.fileHistoryStatus, "stale");
+    assert.equal(after.fileCount, 1);
+    assert.equal(after.files[0].displayPath, "src/cached.js");
+    assert.equal(after.fileHistorySyncedAt, before.fileHistorySyncedAt);
+
+    createHistory(fixture.historyPath, {
+      sessions: [{ id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Cached work" }],
+      files: [{ sessionId, path: "C:\\repo\\src\\restored.js", toolName: "edit", turnIndex: 2 }]
+    });
+    await request(server, "/api/import-history", { method: "POST" });
+    const recovered = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(recovered.fileHistoryStatus, "current");
+    assert.equal(recovered.files[0].displayPath, "src/restored.js");
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("preserves the full cache when a source snapshot is partially malformed", async () => {
+  const fixture = await createFixture();
+  const sessionId = "malformed-snapshot";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Validate history" }],
+    files: [{ sessionId, path: "C:\\repo\\src\\original.js", toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/import-history", { method: "POST" });
+    replaceFiles(fixture.historyPath, [
+      { sessionId, path: "C:\\repo\\src\\replacement.js", toolName: "edit", turnIndex: 2 },
+      { sessionId, path: "C:\\repo\\src\\bad\u202efile.js", toolName: "edit", turnIndex: 3 }
+    ]);
+
+    const result = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(result.fileSessions, 0);
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "stale");
+    assert.equal(detail.fileCount, 1);
+    assert.equal(detail.files[0].displayPath, "src/original.js");
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("preserves cached files when the source file schema is unsupported", async () => {
+  const fixture = await createFixture();
+  const sessionId = "unsupported-schema";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Schema change" }],
+    files: [{ sessionId, path: "C:\\repo\\src\\cached.js", toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/import-history", { method: "POST" });
+    await unlink(fixture.historyPath);
+    createSessionsOnlyHistory(fixture.historyPath, [
+      { id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Schema change" }
+    ]);
+
+    const result = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(result.filesAvailable, false);
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "stale");
+    assert.equal(detail.files[0].displayPath, "src/cached.js");
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("rejects snapshots above the 10000-file boundary without replacing cache", async () => {
+  const fixture = await createFixture();
+  const sessionId = "oversized-snapshot";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: "C:\\repo", repository: "C:\\repo", summary: "Large history" }],
+    files: [{ sessionId, path: "C:\\repo\\src\\cached.js", toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/import-history", { method: "POST" });
+    replaceFiles(fixture.historyPath, Array.from({ length: 10001 }, (_, index) => ({
+      sessionId,
+      path: `C:\\repo\\generated\\file-${index}.js`,
+      toolName: "edit",
+      turnIndex: index
+    })));
+
+    const result = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(result.fileSessions, 0);
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "stale");
+    assert.equal(detail.fileCount, 1);
+    assert.equal(detail.files[0].displayPath, "src/cached.js");
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("sets current and empty states and remains idempotent", async () => {
+  const fixture = await createFixture();
+  createHistory(fixture.historyPath, {
+    sessions: [
+      { id: "with-files", cwd: "C:\\repo", repository: "C:\\repo", summary: "Has files" },
+      { id: "without-files", cwd: "C:\\repo", repository: "C:\\repo", summary: "No files" }
+    ],
+    files: [{ sessionId: "with-files", path: "C:\\repo\\one.js", toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    const first = await request(server, "/api/import-history", { method: "POST" });
+    const second = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(first.imported, 2);
+    assert.equal(second.imported, 0);
+    assert.equal(second.skipped, 2);
+
+    const withFiles = await request(server, "/api/sessions/with-files");
+    const withoutFiles = await request(server, "/api/sessions/without-files");
+    assert.equal(withFiles.fileHistoryStatus, "current");
+    assert.equal(withFiles.fileCount, 1);
+    assert.equal(withoutFiles.fileHistoryStatus, "empty");
+    assert.equal(withoutFiles.fileCount, 0);
+    assert.ok(Number.isFinite(withFiles.fileHistorySyncedAt));
+    assert.ok(Number.isFinite(withoutFiles.fileHistorySyncedAt));
+    assert.equal(withFiles.events.filter((event) => event.type === "history-import").length, 1);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("imports a session supported only by file evidence", async () => {
+  const fixture = await createFixture();
+  const sessionId = "file-only";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: "", repository: "", summary: "" }],
+    files: [{ sessionId, path: "D:\\outside\\only-file.txt", toolName: "view", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    const result = await request(server, "/api/import-history", { method: "POST" });
+    assert.equal(result.imported, 1);
+    assert.equal(result.fileSessions, 1);
+    const detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.title, "New Copilot session");
+    assert.equal(detail.imported, true);
+    assert.equal(detail.files[0].displayPath, "only-file.txt");
+    assert.equal(detail.files[0].outsideWorkspace, true);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("synchronizes files on all lifecycle hooks without disturbing project data", async () => {
+  const fixture = await createFixture();
+  const sessionId = "hook-sync";
+  createHistory(fixture.historyPath, {
+    sessions: [{ id: sessionId, cwd: process.cwd(), repository: process.cwd(), summary: "Hook sync" }],
+    files: [{ sessionId, path: join(process.cwd(), "server", "server.mjs"), toolName: "edit", turnIndex: 1 }]
+  });
+  const server = await startServer(fixture);
+  try {
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId, cwd: process.cwd(), timestamp: Date.now(), source: "new" }
+    });
+    await request(server, `/api/sessions/${sessionId}/tasks`, {
+      method: "POST",
+      body: { text: "Keep project behavior" }
+    });
+    await request(server, `/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      body: { isProject: true }
+    });
+    await request(server, `/api/sessions/${sessionId}/work-items`, {
+      method: "POST",
+      body: {
+        type: "Feature",
+        title: "Recall-first work",
+        url: "https://example.visualstudio.com/Engineering/_workitems/edit/456"
+      }
+    });
+
+    await request(server, "/api/hooks/agentStop", {
+      method: "POST",
+      body: { sessionId, timestamp: Date.now() }
+    });
+    let detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "current");
+
+    replaceFiles(fixture.historyPath, []);
+    await request(server, "/api/hooks/preCompact", {
+      method: "POST",
+      body: { sessionId, timestamp: Date.now() }
+    });
+    detail = await request(server, `/api/sessions/${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "empty");
+
+    replaceFiles(fixture.historyPath, [
+      { sessionId, path: join(process.cwd(), "public", "app.js"), toolName: "edit", turnIndex: 2 }
+    ]);
+    await request(server, "/api/hooks/sessionEnd", {
+      method: "POST",
+      body: { sessionId, timestamp: Date.now(), reason: "user_exit" }
+    });
+
+    detail = await request(server, `/api/sessions/${sessionId}`);
+    const projects = await request(server, "/api/projects");
+    const board = await request(server, `/api/board?sessionId=${sessionId}`);
+    assert.equal(detail.fileHistoryStatus, "current");
+    assert.equal(detail.status, "paused");
+    assert.equal(detail.tasks.length, 1);
+    assert.equal(detail.workItems[0].workItemId, 456);
+    assert.equal(projects[0].isProject, true);
+    assert.equal(board.total, 1);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("returns an actionable conflict when the resume workspace is missing", async () => {
+  const fixture = await createFixture();
+  const server = await startServer(fixture);
+  const sessionId = "missing-workspace";
+  try {
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId, cwd: join(fixture.directory, "does-not-exist"), timestamp: Date.now(), source: "new" }
+    });
+    const response = await fetch(`${server.baseUrl}/api/sessions/${sessionId}/resume`, { method: "POST" });
+    const result = await response.json();
+    assert.equal(response.status, 409);
+    assert.match(result.error, /working directory no longer exists/i);
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("static UI retains recall-first and secondary-project contracts", async () => {
+  const [html, app, wrapWithNext] = await Promise.all([
+    readFile(join(root, "public", "index.html"), "utf8"),
+    readFile(join(root, "public", "app.js"), "utf8"),
+    readFile(join(root, "commands", "wrap-with-next.md"), "utf8")
+  ]);
+  assert.match(html, /Search what you remember/);
+  assert.match(html, /Task, project, folder, or file/);
+  assert.match(html, /Files involved/);
+  assert.match(html, /Questions and actions/);
+  assert.match(html, /id="boardView"/);
+  assert.match(html, /Resume this session/);
+  assert.match(html, /id="sessionIdChip"/);
+  assert.match(app, /No sessions match that search/);
+  assert.match(app, /agency copilot --resume=/);
+  assert.match(app, /\/wrap-with-next/);
+  assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
+  assert.match(wrapWithNext, /"tasks"/);
+  assert.match(app, /File history unavailable/);
+  assert.match(app, /function openSidebar/);
+  assert.match(app, /function closeSidebar/);
+  assert.match(html, /aria-modal="true"/);
+  assert.match(html, /aria-pressed="true"/);
+
+  const references = new Set([...app.matchAll(/elements\.([A-Za-z0-9_]+)/g)].map((match) => match[1]));
+  const ids = new Set([...html.matchAll(/id="([A-Za-z0-9_]+)"/g)].map((match) => match[1]));
+  assert.deepEqual([...references].filter((name) => !ids.has(name)), []);
+});
+
+test("returns anti-framing headers on UI and API responses", async () => {
+  const fixture = await createFixture();
+  const server = await startServer(fixture);
+  try {
+    for (const path of ["/", "/api/health"]) {
+      const response = await fetch(`${server.baseUrl}${path}`);
+      assert.equal(response.headers.get("x-frame-options"), "DENY");
+      assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'");
+    }
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+async function createFixture() {
+  const directory = await mkdtemp(join(tmpdir(), "session-hub-files-"));
+  return {
+    directory,
+    dataDir: join(directory, "data"),
+    historyPath: join(directory, "history.db"),
+    port: nextPort++
+  };
+}
+
+function createHistory(path, { sessions = [], files = [], questions = [] } = {}) {
+  const db = new DatabaseSync(path);
+  db.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      cwd TEXT,
+      repository TEXT,
+      branch TEXT,
+      summary TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      host_type TEXT
+    );
+    CREATE TABLE session_files (
+      session_id TEXT,
+      file_path TEXT,
+      tool_name TEXT,
+      turn_index INTEGER,
+      first_seen_at TEXT
+    );
+    CREATE TABLE turns (
+      session_id TEXT,
+      turn_index INTEGER,
+      user_message TEXT,
+      assistant_response TEXT
+    );
+  `);
+  const insertSession = db.prepare(`
+    INSERT INTO sessions(id, cwd, repository, branch, summary, created_at, updated_at, host_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+  `);
+  const insertFile = db.prepare(`
+    INSERT INTO session_files(session_id, file_path, tool_name, turn_index, first_seen_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const insertQuestion = db.prepare(`
+    INSERT INTO turns(session_id, turn_index, user_message, assistant_response)
+    VALUES (?, ?, ?, '')
+  `);
+  const now = new Date().toISOString();
+  for (const session of sessions) {
+    insertSession.run(
+      session.id,
+      session.cwd ?? "",
+      session.repository ?? "",
+      session.branch ?? "",
+      session.summary ?? "",
+      session.createdAt ?? now,
+      session.updatedAt ?? now
+    );
+  }
+  for (const file of files) {
+    insertFile.run(
+      file.sessionId,
+      file.path,
+      file.toolName ?? "",
+      file.turnIndex ?? null,
+      file.firstSeenAt ?? now
+    );
+  }
+  for (const question of questions) {
+    insertQuestion.run(question.sessionId, question.turnIndex ?? 0, question.text);
+  }
+  db.close();
+}
+
+function createSessionsOnlyHistory(path, sessions) {
+  const db = new DatabaseSync(path);
+  db.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      cwd TEXT,
+      repository TEXT,
+      branch TEXT,
+      summary TEXT,
+      created_at TEXT,
+      updated_at TEXT,
+      host_type TEXT
+    );
+  `);
+  const insert = db.prepare(`
+    INSERT INTO sessions(id, cwd, repository, branch, summary, created_at, updated_at, host_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+  `);
+  const now = new Date().toISOString();
+  for (const session of sessions) {
+    insert.run(session.id, session.cwd ?? "", session.repository ?? "", session.branch ?? "", session.summary ?? "", now, now);
+  }
+  db.close();
+}
+
+function replaceFiles(path, files) {
+  const db = new DatabaseSync(path);
+  db.exec("BEGIN; DELETE FROM session_files");
+  const insert = db.prepare(`
+    INSERT INTO session_files(session_id, file_path, tool_name, turn_index, first_seen_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const now = new Date().toISOString();
+  for (const file of files) {
+    insert.run(file.sessionId, file.path, file.toolName ?? "", file.turnIndex ?? null, file.firstSeenAt ?? now);
+  }
+  db.exec("COMMIT");
+  db.close();
+}
+
+async function startServer(fixture) {
+  const baseUrl = `http://127.0.0.1:${fixture.port}`;
+  const child = spawn(process.execPath, ["server/server.mjs"], {
+    cwd: root,
+    env: {
+      ...process.env,
+      COPILOT_SESSION_HUB_DATA: fixture.dataDir,
+      COPILOT_SESSION_HUB_HISTORY_DB: fixture.historyPath,
+      COPILOT_SESSION_HUB_PORT: String(fixture.port),
+      COPILOT_SESSION_HUB_IMPORT_HISTORY: "0"
+    },
+    stdio: ["ignore", "ignore", "pipe"],
+    windowsHide: true
+  });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+  try {
+    await waitForHealth(baseUrl, child, () => stderr);
+    return { child, baseUrl, getStderr: () => stderr };
+  } catch (error) {
+    await terminateChild(child);
+    await rm(fixture.directory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function stopServer(server, fixture) {
+  await fetch(`${server.baseUrl}/api/shutdown`, { method: "POST" }).catch(() => {});
+  if (!(await waitForExit(server.child, 1500))) await terminateChild(server.child);
+  await rm(fixture.directory, { recursive: true, force: true });
+}
+
+async function request(server, path, options = {}) {
+  const response = await fetch(`${server.baseUrl}${path}`, {
+    ...options,
+    headers: options.body ? { "content-type": "application/json", ...options.headers } : options.headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+  const result = await response.json();
+  assert.equal(response.ok, true, `${options.method || "GET"} ${path} -> ${response.status}: ${JSON.stringify(result)}`);
+  return result;
+}
+
+async function waitForHealth(baseUrl, child, getStderr) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (child.exitCode !== null) throw new Error(`Test server exited with ${child.exitCode}: ${getStderr()}`);
+    try {
+      const response = await fetch(`${baseUrl}/api/health`);
+      if (response.ok) return;
+    } catch {
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`Test server did not start at ${baseUrl}: ${getStderr()}`);
+}
+
+async function terminateChild(child) {
+  if (child.exitCode !== null) return;
+  child.kill();
+  await waitForExit(child, 2000);
+}
+
+async function waitForExit(child, milliseconds) {
+  if (child.exitCode !== null) return true;
+  return Promise.race([
+    new Promise((resolve) => child.once("exit", () => resolve(true))),
+    new Promise((resolve) => setTimeout(() => resolve(false), milliseconds))
+  ]);
+}

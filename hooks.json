@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionStart",
+        "timeoutSec": 8
+      }
+    ],
+    "agentStop": [
+      {
+        "type": "command",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" agentStop",
+        "timeoutSec": 8
+      }
+    ],
+    "sessionEnd": [
+      {
+        "type": "command",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionEnd",
+        "timeoutSec": 8
+      }
+    ],
+    "preCompact": [
+      {
+        "type": "command",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" preCompact",
+        "timeoutSec": 8
+      }
+    ]
+  }
+}

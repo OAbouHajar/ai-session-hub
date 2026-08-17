@@ -1,0 +1,53 @@
+---
+description: Wrap the session and save an explicit todo list for the next session
+---
+
+Wrap the current session into Copilot Session Hub and preserve the user's intended next-session todo list.
+
+1. Read the full substantive conversation, including completed work, failed checks, blockers, corrections, and promises.
+2. Determine the todo list:
+   - If the user included todos with the `/wrap-with-next` invocation, use those todos.
+   - Otherwise ask one focused question using the `ask_user` tool: `What should I save in the todo list for your next session?`
+   - Preserve the user's intent, but rewrite each todo as one concise actionable item.
+   - Maximum 10 todos.
+   - Do not add generic advice or work the user did not request.
+3. Produce the standard continuity checkpoint:
+   - `title`: concise session title.
+   - `summary`: goal and meaningful progress.
+   - `lastAction`: last meaningful completed and verified outcome.
+   - `nextAction`: the first todo item.
+   - `tasks`: the complete explicit todo list, including the first item.
+   - `unresolved`: genuine blockers or open questions.
+   - `decisions`: important decisions made in the session.
+4. If the user explicitly says there is nothing left to do, set:
+   - `nextAction` to `No pending action — this session is complete.`
+   - `tasks` to an empty array.
+5. Find the Session Hub checkpoint endpoint from the session-start context.
+6. POST exactly this JSON shape using PowerShell `Invoke-RestMethod`:
+
+```json
+{
+  "title": "Short title",
+  "summary": "What this session accomplished",
+  "lastAction": "Last meaningful completed action",
+  "nextAction": "First explicit todo",
+  "tasks": [
+    "First explicit todo",
+    "Second explicit todo"
+  ],
+  "unresolved": ["Open question"],
+  "decisions": ["Important decision"]
+}
+```
+
+Do not include secrets, raw tool output, timestamps, session IDs, or alternate property names in the body.
+
+After a successful save, show:
+
+```text
+Session wrapped — N todos saved
+Start next time with: <nextAction>
+Dashboard: <dashboardUrl>
+```
+
+Do not claim success unless the endpoint confirms the save. Do not exit Copilot automatically.

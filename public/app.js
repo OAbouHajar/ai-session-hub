@@ -360,6 +360,8 @@ function renderDetail() {
   elements.sessionSummary.textContent = session.summary || "No AI checkpoint yet. Use /wrap before leaving this session.";
   elements.statusBadge.textContent = session.status;
   elements.statusBadge.className = `badge ${session.status}`;
+  elements.providerBadge.textContent = session.providerName || "AI CLI";
+  elements.providerBadge.dataset.provider = session.provider || "";
   elements.updatedLabel.textContent = `Updated ${relativeTime(session.updatedAt)}`;
   elements.projectBadge.classList.toggle("hidden", !session.isProject);
   elements.importedBadge.classList.toggle("hidden", !session.imported);
@@ -371,6 +373,7 @@ function renderDetail() {
   elements.branchChip.querySelector("span").textContent = session.branch || "No branch";
   elements.sessionIdChip.querySelector("span").textContent = `Session ID: ${shortSessionId(session.externalId || session.id)}`;
   elements.sessionIdChip.title = `Copy ${session.resumeCommand}`;
+  elements.sessionIdChip.setAttribute("aria-label", `Copy ${session.providerName || "AI CLI"} resume command`);
   elements.sessionDuration.textContent = formatDuration(session.startedAt, session.endedAt || Date.now());
   renderSessionMetrics(session.metrics);
   elements.trackProjectButton.classList.toggle("tracked", session.isProject);

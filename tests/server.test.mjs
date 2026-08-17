@@ -124,6 +124,8 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
   assert.equal(preserved.summary, "Updated summary only.");
   assert.equal(preserved.imported, false);
   assert.equal(preserved.workItems.length, 1);
+  assert.equal(preserved.providerName, "GitHub Copilot CLI");
+  assert.equal(preserved.resumeCommand, `copilot --resume=${id}`);
   assert.ok("metrics" in preserved);
 });
 
@@ -211,15 +213,24 @@ test("tracks provider sessions with collision-safe IDs and resume commands", asy
     body: JSON.stringify({ sessionId: externalId, timestamp: Date.now(), cwd: process.cwd(), source: "startup" })
   });
   assert.equal(response.status, 200);
+  response = await fetch(`${baseUrl}/api/hooks/codex/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: externalId, timestamp: Date.now(), cwd: process.cwd(), source: "startup" })
+  });
+  assert.equal(response.status, 200);
 
   const claude = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(`claude:${externalId}`)}`).then((result) => result.json());
   const gemini = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(`gemini:${externalId}`)}`).then((result) => result.json());
+  const codex = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(`codex:${externalId}`)}`).then((result) => result.json());
   assert.equal(claude.provider, "claude");
   assert.equal(claude.externalId, externalId);
   assert.equal(claude.providerName, "Claude Code");
   assert.equal(claude.resumeCommand, `claude --resume ${externalId}`);
   assert.equal(gemini.provider, "gemini");
   assert.equal(gemini.resumeCommand, `gemini --resume ${externalId}`);
+  assert.equal(codex.providerName, "Codex CLI");
+  assert.equal(codex.resumeCommand, `codex resume ${externalId}`);
 });
 
 async function waitForHealth() {

@@ -1,73 +1,54 @@
 # AI Session Hub
 
-**Local-first continuity for AI coding sessions. Find past work, understand where it stopped, and continue without reconstructing the whole conversation.**
+**Local-first continuity for AI coding sessions. Find past work, understand where it stopped, and continue without reconstructing the conversation.**
 
-> AI Session Hub integrates with **GitHub Copilot CLI**, **Claude Code**, **OpenAI Codex CLI**, and **Google Gemini CLI**.
+> Supports **GitHub Copilot CLI**, **Claude Code**, **OpenAI Codex CLI**, and **Google Gemini CLI**.
 >
-> This is an independent open source project and is not an official GitHub or Microsoft product.
+> Independent open source software; not an official GitHub, Microsoft, Anthropic, OpenAI, or Google product.
 
 ![AI Session Hub Sessions view](screenshots/sessions-screenshot.png)
 
-_The Sessions view keeps the goal, completed work, stopping point, next action, and resume control together._
+## Start here
 
-## Why this project matters
+| I want to… | Go to |
+|---|---|
+| Install AI Session Hub | [Quick start](#quick-start) |
+| Set up a specific AI CLI | [Provider guides](docs/providers/README.md) |
+| Understand wrapping and resume | [Daily workflow](#daily-workflow) |
+| Track work on a Kanban board | [Project board](#project-board) |
+| Check storage and privacy | [Data and privacy](#data-and-privacy) |
+| Upgrade or uninstall | [Maintenance](#maintenance) |
+| Develop or contribute | [Development](#development) |
 
-AI coding sessions are productive but easy to lose:
+## At a glance
 
-- the useful context is trapped in an old terminal session;
-- you remember the task, file, or project, but not the session ID;
-- a long conversation ends without a reliable handoff;
-- the next steps disappear between sessions;
-- project work becomes scattered across many AI conversations.
-
-AI Session Hub turns session history into a searchable continuity layer. It answers:
-
-> “I worked with an AI coding assistant on this before. What happened, where did we stop, and how do I continue?”
+| Question | Answer |
+|---|---|
+| What does it do? | Tracks AI CLI sessions and saves clear continuity checkpoints |
+| Where does it run? | Locally at `http://127.0.0.1:43120` |
+| Where is data stored? | In a local SQLite database |
+| Does it upload sessions? | No |
+| Which systems are supported? | macOS and Windows |
+| Which providers are supported? | Copilot, Claude, Codex, and Gemini |
+| Can it resume sessions? | Yes, using the matching provider command |
 
 ## What you get
 
-- **Automatic session tracking** through supported AI CLI lifecycle hooks.
-- **Wrapped-session focus** so high-quality continuity checkpoints appear first.
-- **Normal search** across titles, summaries, actions, tasks, projects, folders, and worked-on files.
-- **Recall-first session details** with summary, last completed action, recommended next action, and resume command.
-- **Explicit next-session todos** with `/wrap-with-next`.
-- **Questions and actions history** with system noise removed and skill calls humanized.
-- **Worked-on file evidence** imported from local session history when available.
-- **Sessions and Board views** for recall and optional Kanban project tracking.
-- **Work item links**, currently supporting Azure DevOps work-item URLs.
-- **Local-only storage** and a loopback-only dashboard at `http://127.0.0.1:43120`.
-- **Safe upgrades** that preserve existing SQLite session data.
+- Automatic lifecycle tracking for supported AI CLIs.
+- Search across tasks, summaries, actions, projects, folders, and files.
+- Clear **where you left off** and **continue from here** views.
+- Structured wrap checkpoints and next-session todo lists.
+- Provider-specific resume commands.
+- Optional Kanban project tracking.
+- Local-only storage with safe upgrades.
 
 ## Quick start
 
-### Option 1: Ask your AI CLI to install it
+### Install manually
 
-Copy this platform-aware prompt into GitHub Copilot CLI, Claude Code, Codex CLI, or Gemini CLI:
+Requirements: Git, Node.js 22.5+, a signed-in supported AI CLI, and PowerShell 7 on Windows.
 
-```text
-Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
-
-Detect the operating system first and use the matching setup:
-- On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI (GitHub Copilot, Claude Code, Codex, or Gemini); use `./scripts/install.sh --no-open`; and preserve all existing data under `~/Library/Application Support/CopilotSessionHub` or the legacy `~/.copilot-session-hub` location.
-- On Windows, verify git, PowerShell 7, Node.js 22.5+, and at least one supported AI CLI; use `pwsh -File .\scripts\install.ps1 -NoOpen`; and preserve all existing data under `%LOCALAPPDATA%\CopilotSessionHub`.
-- On any other operating system, stop and report that it is unsupported.
-
-Verify that each detected AI CLI is usable and signed in. Clone the latest `main` branch into a temporary directory, read the README and the matching installer before running it, and do not delete or overwrite existing session data or unrelated AI CLI settings. If a prerequisite is missing, report the exact official installation command or link. If a plugin or hook cannot be refreshed because an active AI CLI session is using it, report the installer's exact retry command and do not claim success. After installation, verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining action. Proceed autonomously and only ask before administrator-required or destructive actions.
-```
-
-The full AI-assisted installation prompts for [macOS](docs/copilot-install-prompt-macos.md) and [Windows](docs/copilot-install-prompt.md) include prerequisite recovery, hook or plugin handling, and verification steps.
-
-### Option 2: Install manually
-
-Requirements:
-
-- macOS or Windows
-- Git
-- PowerShell 7 (`pwsh`) on Windows
-- Node.js 22.5 or newer
-- At least one supported AI CLI, signed in
-
-macOS:
+**macOS**
 
 ```bash
 git clone https://github.com/OAbouHajar/ai-session-hub.git
@@ -75,7 +56,7 @@ cd ai-session-hub
 ./scripts/install.sh
 ```
 
-Windows:
+**Windows**
 
 ```powershell
 git clone https://github.com/OAbouHajar/ai-session-hub.git
@@ -83,61 +64,60 @@ cd ai-session-hub
 pwsh -File .\scripts\install.ps1
 ```
 
-The installer detects installed providers and adds only AI Session Hub hook entries while preserving existing settings. Restart each detected AI CLI after installation so its hooks are loaded.
+The installer detects available providers, preserves existing settings and session data, configures the required hooks, starts the local service, and opens the dashboard.
 
-## Supported providers
+<details>
+<summary><strong>Ask an AI CLI to install it</strong></summary>
 
-| Provider | Tracking | Resume | Integration | Guides |
+Copy this prompt into Copilot, Claude, Codex, or Gemini:
+
+```text
+Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
+
+Detect the operating system first. On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
+
+Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.
+```
+
+Full prompts: [macOS](docs/copilot-install-prompt-macos.md) · [Windows](docs/copilot-install-prompt.md)
+
+</details>
+
+## Provider support
+
+| Provider | Tracking | Resume | Wrap interaction | Guides |
 |---|---|---|---|---|
-| GitHub Copilot CLI | Yes | Yes | Plugin hooks and slash commands | [Setup](docs/providers/github-copilot/setup.md) · [Usage](docs/providers/github-copilot/usage.md) |
-| Claude Code | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/claude-code/setup.md) · [Usage](docs/providers/claude-code/usage.md) |
-| OpenAI Codex CLI | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/codex/setup.md) · [Usage](docs/providers/codex/usage.md) |
-| Google Gemini CLI | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/gemini/setup.md) · [Usage](docs/providers/gemini/usage.md) |
+| GitHub Copilot CLI | Yes | `copilot --resume=<id>` | `/wrap` or natural language | [Setup](docs/providers/github-copilot/setup.md) · [Usage](docs/providers/github-copilot/usage.md) |
+| Claude Code | Yes | `claude --resume <id>` | “Wrap this session” | [Setup](docs/providers/claude-code/setup.md) · [Usage](docs/providers/claude-code/usage.md) |
+| OpenAI Codex CLI | Yes | `codex resume <id>` | “Wrap this session” | [Setup](docs/providers/codex/setup.md) · [Usage](docs/providers/codex/usage.md) |
+| Google Gemini CLI | Yes | `gemini --resume <id>` | “Wrap this session” | [Setup](docs/providers/gemini/setup.md) · [Usage](docs/providers/gemini/usage.md) |
 
-AI Session Hub uses documented lifecycle hook payloads as its stable integration boundary. Provider transcript formats are not treated as stable APIs.
+AI Session Hub uses documented lifecycle hooks rather than unstable provider transcript formats. Historical import is currently available only for supported Copilot CLI history.
 
-See the [provider guide index](docs/providers/README.md) for setup locations, restart requirements, wrapping behavior, and resume commands.
+## Daily workflow
 
-## How to use it
+1. Start or resume a supported AI CLI session.
+2. Work normally while AI Session Hub tracks lifecycle events.
+3. Before leaving, ask the assistant to **wrap this session** or **checkpoint this session**.
+4. Later, search the dashboard for the task, project, folder, action, or file you remember.
+5. Review the saved stopping point and next action.
+6. Resume from the dashboard.
 
-1. Start or resume a session in a supported AI CLI.
-2. Work normally; the lifecycle appears in AI Session Hub.
-3. Before stopping, ask the assistant to **wrap this session** or **checkpoint this session**. GitHub Copilot CLI also provides these slash commands:
+Copilot also includes:
 
 | Command | Purpose |
 |---|---|
-| `/wrap` | Save a continuity checkpoint inferred from the actual session history |
-| `/wrap-with-next` | Save the checkpoint plus your explicit next-session todo list |
-| `/kanban` | Generate an ordered plan from genuinely unfinished work |
-| `/kanban-update` | Reconcile board state with completed, blocked, and discovered work |
-| `/kanban-process` | Select and execute the next actionable board item |
+| `/wrap` | Save a continuity checkpoint |
+| `/wrap-with-next` | Save a checkpoint with an explicit todo list |
+| `/kanban` | Build an ordered plan from unfinished work |
+| `/kanban-update` | Reconcile board state with actual progress |
+| `/kanban-process` | Execute the next actionable board task |
 
-4. Return later and search for anything you remember: a task, project, folder, action, or filename.
-5. Review the stopping point and next action.
-6. Resume from the dashboard or copy:
+## Project board
 
-The copied resume command matches the session provider, such as `copilot --resume=<id>`, `claude --resume <id>`, `codex resume <id>`, or `gemini --resume <id>`.
-
-## Manage a session as a project board
-
-Any session can become a tracked project without losing its continuity view:
-
-1. Open a session in the **Sessions** view.
-2. Expand **More context** and choose **Track as project**.
-3. Switch to the **Board** view.
-4. Select the tracked project from the sidebar.
-5. Add tasks manually, drag cards between columns, or use the AI commands:
-   - `/kanban` creates an ordered board from genuinely unfinished session work.
-   - `/kanban-update` reconciles completed, blocked, and newly discovered work.
-   - `/kanban-process` selects and executes the next actionable card.
-6. Link a work item when the project maps to an external tracker.
-7. Choose **Open session** at any time to return to the full session context.
-
-The board uses **Backlog**, **Next**, **In progress**, **Blocked**, and **Done** columns.
+Track any session as a project to organize tasks into **Backlog**, **Next**, **In progress**, **Blocked**, and **Done**. Add tasks directly to a column, drag them between states, or let the Kanban commands reconcile progress.
 
 ![AI Session Hub Board view](screenshots/board-screenshot.png)
-
-_The Board view organizes tracked project tasks into Backlog, Next, In progress, Blocked, and Done._
 
 ## How it works
 
@@ -154,41 +134,48 @@ Local SQLite continuity store
 Searchable browser dashboard
 ```
 
-- Hook payloads track session lifecycle events.
-- `/wrap` runs while conversation context is still available and writes the semantic handoff.
-- Existing Copilot CLI session history is imported read-only.
-- File paths are stored locally for search, but the browser receives workspace-relative paths or basenames.
-- The service does not upload session data.
+Hooks record lifecycle events and provide the assistant with the local checkpoint endpoint. A wrap request writes the useful semantic handoff while conversation context is still available.
 
 ## Data and privacy
 
-- Service binding: `127.0.0.1` only.
-- Session database: `~/Library/Application Support/CopilotSessionHub/sessions.db` on macOS or `%LOCALAPPDATA%\CopilotSessionHub\sessions.db` on Windows.
-- Installation directory: `~/Library/Application Support/AI Session Hub/app` on macOS or `%LOCALAPPDATA%\Programs\CopilotSessionHub` on Windows.
-- Existing session data is preserved during reinstall and uninstall.
-- Existing macOS data in the legacy `~/.copilot-session-hub` location continues to be used automatically.
-- Request Host/Origin checks and anti-framing headers protect local actions.
-- No cloud database, analytics service, or external upload is required.
+| Item | macOS | Windows |
+|---|---|---|
+| Session data | `~/Library/Application Support/CopilotSessionHub` | `%LOCALAPPDATA%\CopilotSessionHub` |
+| Application | `~/Library/Application Support/AI Session Hub/app` | `%LOCALAPPDATA%\Programs\CopilotSessionHub` |
 
-## Upgrade
+- The service binds only to `127.0.0.1`.
+- Session data remains local.
+- Reinstall, upgrade, and uninstall preserve the SQLite database.
+- Existing legacy macOS data in `~/.copilot-session-hub` remains supported.
+- Request origin checks and anti-framing headers protect local actions.
 
-Pull the latest version and rerun the installer.
+## Maintenance
 
-macOS:
+### Upgrade
+
+Pull the latest version and rerun the installer:
 
 ```bash
 git pull
 ./scripts/install.sh --no-open
 ```
 
-Windows:
-
 ```powershell
 git pull
 pwsh -File .\scripts\install.ps1 -NoOpen
 ```
 
-If an active Copilot session locks the loaded plugin files, the installer updates the application, keeps the dashboard available, and prints the exact retry command to run after exiting Copilot.
+### Uninstall
+
+```bash
+./scripts/uninstall.sh
+```
+
+```powershell
+pwsh -File .\scripts\uninstall.ps1
+```
+
+Uninstalling removes integrations but leaves session data intact.
 
 ## Development
 
@@ -197,30 +184,7 @@ npm start
 npm test
 ```
 
-The project uses Node.js built-ins, including `node:http`, `node:sqlite`, and the native test runner. There are no runtime npm dependencies.
-
-## Roadmap
-
-- Provider-specific historical session import beyond Copilot CLI.
-- Support for additional AI coding CLI providers.
-- Generic work-item providers beyond the current Azure DevOps URL integration.
-- Optional packaged installer and release artifacts.
-
-## Uninstall
-
-macOS:
-
-```bash
-./scripts/uninstall.sh
-```
-
-Windows:
-
-```powershell
-pwsh -File .\scripts\uninstall.ps1
-```
-
-Uninstalling leaves the local SQLite session data in place.
+The project has no runtime npm dependencies. It uses Node.js built-ins including `node:http`, `node:sqlite`, and the native test runner.
 
 ## License
 

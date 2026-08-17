@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +37,18 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
   });
   assert.equal(response.status, 200);
 
+  const metricsPath = join(dataDir, "metrics-events.jsonl");
+  await writeFile(metricsPath, `${JSON.stringify({
+    type: "session.usage_checkpoint",
+    data: { totalNanoAiu: 18_943_000_000_000 }
+  })}\n`, "utf8");
+  response = await fetch(`${baseUrl}/api/hooks/agentStop`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: id, timestamp: Date.now(), transcriptPath: metricsPath })
+  });
+  assert.equal(response.status, 200);
+
   response = await fetch(`${baseUrl}/api/sessions/${id}/checkpoint`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -56,6 +68,7 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
   assert.equal(session.title, "Build session dashboard");
   assert.equal(session.tasks.length, 2);
   assert.equal(session.needsReview, false);
+  assert.equal(session.metrics.aiCredits, 18_943);
 
   response = await fetch(`${baseUrl}/api/tasks/${session.tasks[0].id}`, {
     method: "PATCH",

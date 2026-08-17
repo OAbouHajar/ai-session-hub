@@ -977,7 +977,7 @@ function renderSessionMetrics(metrics = {}) {
     elements.contextDetail.textContent = "Wrap to capture";
   }
   if (Number.isFinite(metrics.aiCredits)) {
-    elements.creditMetric.textContent = metrics.aiCredits.toFixed(2);
+    elements.creditMetric.textContent = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(metrics.aiCredits);
     elements.creditDetail.textContent = "AI credits used";
   } else {
     elements.creditMetric.textContent = "Unavailable";

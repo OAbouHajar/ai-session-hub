@@ -85,6 +85,10 @@ db.exec(`
     first_seen_at INTEGER,
     PRIMARY KEY(session_id, path_key)
   );
+  CREATE TABLE IF NOT EXISTS app_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
   CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, position);
   CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, created_at DESC);
@@ -106,6 +110,11 @@ ensureColumn("sessions", "files_synced_at", "INTEGER");
 ensureColumn("sessions", "files_sync_error", "TEXT NOT NULL DEFAULT ''");
 ensureColumn("tasks", "status", "TEXT NOT NULL DEFAULT 'next'");
 db.exec("UPDATE tasks SET status = CASE WHEN completed = 1 THEN 'done' ELSE 'next' END WHERE status IS NULL OR status = ''");
+const aicUnitVersion = db.prepare("SELECT value FROM app_metadata WHERE key = 'aic_unit_version'").get()?.value;
+if (aicUnitVersion !== "2") {
+  db.exec("UPDATE sessions SET ai_credits = ai_credits * 1000 WHERE ai_credits IS NOT NULL");
+  db.prepare("INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('aic_unit_version', '2')").run();
+}
 
 const clients = new Set();
 await replayPendingEvents();
@@ -1186,7 +1195,7 @@ function readSessionMetrics(sessionId, transcriptPath) {
       if (limit) contextLimit = limit;
     }
     return {
-      aiCredits: totalNanoAiu === null ? null : totalNanoAiu / 1_000_000_000_000,
+      aiCredits: totalNanoAiu === null ? null : totalNanoAiu / 1_000_000_000,
       currentTokens,
       contextLimit,
       model,

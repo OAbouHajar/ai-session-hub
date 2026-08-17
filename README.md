@@ -52,7 +52,7 @@ Find past work, understand where it stopped, and continue without reconstructing
 
 Copy this prompt into Copilot, Claude, Codex, or Gemini:
 
-<details>
+<details open>
 <summary><strong>Show installation prompt</strong></summary>
 
 ```text

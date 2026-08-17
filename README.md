@@ -48,6 +48,25 @@ Find past work, understand where it stopped, and continue without reconstructing
 
 ## Quick start
 
+### Ask an AI CLI to install it (recommended)
+
+Copy this prompt into Copilot, Claude, Codex, or Gemini:
+
+<details>
+<summary><strong>Show installation prompt</strong></summary>
+
+```text
+Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
+
+Detect the operating system first. On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
+
+Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.
+```
+
+Full prompts: [macOS](docs/copilot-install-prompt-macos.md) · [Windows](docs/copilot-install-prompt.md)
+
+</details>
+
 ### Install manually
 
 Requirements: Git, Node.js 22.5+, a signed-in supported AI CLI, and PowerShell 7 on Windows.
@@ -69,23 +88,6 @@ pwsh -File .\scripts\install.ps1
 ```
 
 The installer detects available providers, preserves existing settings and session data, configures the required hooks, starts the local service, and opens the dashboard.
-
-<details>
-<summary><strong>Ask an AI CLI to install it</strong></summary>
-
-Copy this prompt into Copilot, Claude, Codex, or Gemini:
-
-```text
-Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
-
-Detect the operating system first. On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
-
-Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.
-```
-
-Full prompts: [macOS](docs/copilot-install-prompt-macos.md) · [Windows](docs/copilot-install-prompt.md)
-
-</details>
 
 ## Provider support
 

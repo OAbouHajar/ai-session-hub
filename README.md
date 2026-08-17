@@ -90,6 +90,27 @@ Restart Copilot CLI after installation so the plugin hooks and commands are load
 agency copilot --resume=<session-id>
 ```
 
+## Manage a session as a project board
+
+Any session can become a tracked project without losing its continuity view:
+
+1. Open a session in the **Sessions** view.
+2. Expand **More context** and choose **Track as project**.
+3. Switch to the **Board** view.
+4. Select the tracked project from the sidebar.
+5. Add tasks manually, drag cards between columns, or use the AI commands:
+   - `/kanban` creates an ordered board from genuinely unfinished session work.
+   - `/kanban-update` reconciles completed, blocked, and newly discovered work.
+   - `/kanban-process` selects and executes the next actionable card.
+6. Link a work item when the project maps to an external tracker.
+7. Choose **Open session** at any time to return to the full session context.
+
+The board uses **Backlog**, **Next**, **In progress**, **Blocked**, and **Done** columns.
+
+![AI Session Hub Board demo](docs/session-hub-board-demo.png)
+
+_Board demo data is fictional._
+
 ## How it works
 
 ```text

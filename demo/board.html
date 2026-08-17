@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Session Hub Board Demo</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; height: 100vh; overflow: hidden;
+      background: var(--cp-bg); color: var(--cp-text);
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+    }
+    .app { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
+    aside { display: flex; flex-direction: column; padding: 18px 12px; background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border); }
+    .brand { display: flex; gap: 10px; align-items: center; padding: 0 5px 16px; }
+    .logo { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 0.625rem; color: var(--cp-accent-fg); background: var(--cp-success); font-weight: 800; }
+    .brand strong, .brand small { display: block; }
+    .brand small { margin-top: 2px; color: var(--cp-text-muted); font-size: 11px; }
+    .views { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .view { padding: 8px; border-radius: 7px; color: var(--cp-text-muted); text-align: center; font-weight: 600; }
+    .view.active { background: var(--cp-surface); color: var(--cp-text); }
+    .search-label { margin: 14px 2px 7px; color: var(--cp-text-soft); font-size: 11px; font-weight: 700; }
+    .search { padding: 10px 11px; color: var(--cp-text-muted); background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .side-title { margin: 20px 3px 8px; color: var(--cp-text-muted); font-size: 11px; font-weight: 700; }
+    .project { display: grid; grid-template-columns: 1fr auto; padding: 11px; border-radius: 0.625rem; }
+    .project.active { background: var(--cp-surface); border: 1px solid var(--cp-border); }
+    .project strong, .project span { display: block; }
+    .project span { margin-top: 3px; color: var(--cp-text-muted); font-size: 10px; }
+    .project time { color: var(--cp-text-muted); font-size: 10px; }
+    main { padding: 0 24px 28px; overflow: hidden; }
+    .top { display: flex; align-items: center; height: 58px; border-bottom: 1px solid var(--cp-border); }
+    .top strong, .top span { display: block; }
+    .top span { margin-top: 2px; color: var(--cp-text-muted); font-size: 10px; }
+    .content { padding-top: 20px; }
+    .heading { display: flex; align-items: flex-start; gap: 18px; }
+    .back { padding: 8px 10px; color: var(--cp-text-muted); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    h1 { margin: 3px 0 5px; font-size: 26px; }
+    .heading p { margin: 0; color: var(--cp-text-muted); }
+    .toolbar { display: grid; grid-template-columns: 280px 1fr auto; gap: 10px; align-items: end; margin-top: 20px; padding: 14px 0; border-top: 1px solid var(--cp-border); border-bottom: 1px solid var(--cp-border); }
+    .toolbar label { display: block; margin-bottom: 5px; color: var(--cp-text-muted); font-size: 10px; font-weight: 700; }
+    .select { padding: 9px 10px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .work { color: var(--cp-link); }
+    .button { padding: 9px 12px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem; font-weight: 600; }
+    .coach { display: flex; align-items: center; justify-content: space-between; padding: 13px 0; border-bottom: 1px solid var(--cp-border); }
+    .coach b, .coach strong { display: block; }
+    .coach b { color: var(--cp-success); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .coach strong { margin-top: 4px; }
+    code { padding: 5px 7px; color: var(--cp-success); background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 6px; }
+    .counts { display: flex; gap: 16px; padding: 11px 0; color: var(--cp-text-muted); font-size: 11px; }
+    .counts b { color: var(--cp-text); }
+    .board { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 10px; }
+    .column { min-height: 580px; padding: 10px; background: var(--cp-surface-soft); border: 1px solid var(--cp-border); border-radius: 16px; }
+    .column header { display: flex; justify-content: space-between; padding: 2px 3px 10px; font-weight: 700; }
+    .column header span:last-child { color: var(--cp-text-muted); }
+    .cards { display: grid; gap: 8px; }
+    .card { padding: 12px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 0.625rem; }
+    .card .session { color: var(--cp-success); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .card p { margin: 8px 0 10px; line-height: 1.45; }
+    .card footer { display: flex; justify-content: space-between; color: var(--cp-text-muted); font-size: 9px; }
+    .blocked { color: var(--cp-danger); }
+    .done { opacity: 0.7; }
+    .done p { text-decoration: line-through; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand"><div class="logo">S</div><div><strong>AI Session Hub</strong><small>Find past work and continue</small></div></div>
+      <div class="views"><div class="view">Sessions</div><div class="view active">Board</div></div>
+      <div class="search-label">Search tracked projects</div>
+      <div class="search">Project, task, folder, or file</div>
+      <div class="side-title">Tracked projects</div>
+      <div class="project active"><div><strong>Checkout reliability</strong><span>4 open · 1 work item</span></div><time>now</time></div>
+      <div class="project"><div><strong>OAuth callback hardening</strong><span>3 open · 2 work items</span></div><time>18m</time></div>
+      <div class="project"><div><strong>Invoice export refactor</strong><span>2 open · 0 work items</span></div><time>2h</time></div>
+    </aside>
+    <main>
+      <div class="top"><div><strong>Projects</strong><span>A secondary delivery workspace</span></div></div>
+      <div class="content">
+        <div class="heading"><div class="back">← Back to sessions</div><div><b>SECONDARY WORKSPACE</b><h1>Projects</h1><p>Organize unfinished work when you need a delivery view.</p></div></div>
+        <div class="toolbar">
+          <div><label>TRACKED PROJECT</label><div class="select">Checkout reliability</div></div>
+          <div class="work">Feature #142 · Payment retry hardening</div>
+          <div class="button">Open session</div>
+        </div>
+        <div class="coach"><div><b>Recommended next action</b><strong>Add the delayed provider response integration test.</strong></div><code>/kanban</code></div>
+        <div class="counts"><span><b>4</b> open</span><span><b>1</b> in progress</span><span><b>1</b> blocked</span><span><b>3</b> done</span></div>
+        <div class="board">
+          <section class="column"><header><span>Backlog</span><span>2</span></header><div class="cards"><article class="card"><span class="session">Checkout reliability</span><p>Update the checkout runbook with retry behavior.</p><footer><span>storefront-api</span><span>Backlog</span></footer></article><article class="card"><span class="session">Checkout reliability</span><p>Add provider latency telemetry to the dashboard.</p><footer><span>storefront-api</span><span>Backlog</span></footer></article></div></section>
+          <section class="column"><header><span>Next</span><span>1</span></header><div class="cards"><article class="card"><span class="session">Checkout reliability</span><p>Add the delayed provider response integration test.</p><footer><span>storefront-api</span><span>Next</span></footer></article></div></section>
+          <section class="column"><header><span>In progress</span><span>1</span></header><div class="cards"><article class="card"><span class="session">Checkout reliability</span><p>Validate idempotency behavior against the sandbox provider.</p><footer><span>storefront-api</span><span>In progress</span></footer></article></div></section>
+          <section class="column"><header><span>Blocked</span><span>1</span></header><div class="cards"><article class="card"><span class="session blocked">Checkout reliability</span><p>Confirm the production retry limit with the payments team.</p><footer><span>Waiting on input</span><span>Blocked</span></footer></article></div></section>
+          <section class="column"><header><span>Done</span><span>3</span></header><div class="cards"><article class="card done"><span class="session">Checkout reliability</span><p>Add idempotency key storage.</p><footer><span>storefront-api</span><span>Done</span></footer></article><article class="card done"><span class="session">Checkout reliability</span><p>Cover duplicate requests with unit tests.</p><footer><span>storefront-api</span><span>Done</span></footer></article></div></section>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

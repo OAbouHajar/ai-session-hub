@@ -87,20 +87,22 @@ The installer detects installed providers and adds only AI Session Hub hook entr
 
 ## Supported providers
 
-| Provider | Tracking | Resume from dashboard | Integration |
-|---|---|---|---|
-| GitHub Copilot CLI | Yes | Yes | Plugin hooks and commands |
-| Claude Code | Yes | Yes | User lifecycle hooks |
-| OpenAI Codex CLI | Yes | Yes | User lifecycle hooks |
-| Google Gemini CLI | Yes | Yes | User lifecycle hooks |
+| Provider | Tracking | Resume | Integration | Guides |
+|---|---|---|---|---|
+| GitHub Copilot CLI | Yes | Yes | Plugin hooks and slash commands | [Setup](docs/providers/github-copilot/setup.md) · [Usage](docs/providers/github-copilot/usage.md) |
+| Claude Code | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/claude-code/setup.md) · [Usage](docs/providers/claude-code/usage.md) |
+| OpenAI Codex CLI | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/codex/setup.md) · [Usage](docs/providers/codex/usage.md) |
+| Google Gemini CLI | Yes | Yes | User lifecycle hooks | [Setup](docs/providers/gemini/setup.md) · [Usage](docs/providers/gemini/usage.md) |
 
 AI Session Hub uses documented lifecycle hook payloads as its stable integration boundary. Provider transcript formats are not treated as stable APIs.
+
+See the [provider guide index](docs/providers/README.md) for setup locations, restart requirements, wrapping behavior, and resume commands.
 
 ## How to use it
 
 1. Start or resume a session in a supported AI CLI.
 2. Work normally; the lifecycle appears in AI Session Hub.
-3. Before stopping, ask the assistant to wrap or checkpoint the session. In GitHub Copilot CLI, you can also use:
+3. Before stopping, ask the assistant to **wrap this session** or **checkpoint this session**. GitHub Copilot CLI also provides these slash commands:
 
 | Command | Purpose |
 |---|---|

@@ -105,6 +105,9 @@ ensureColumn("sessions", "questions", "TEXT NOT NULL DEFAULT '[]'");
 ensureColumn("sessions", "files_status", "TEXT NOT NULL DEFAULT 'unavailable'");
 ensureColumn("sessions", "files_synced_at", "INTEGER");
 ensureColumn("sessions", "files_sync_error", "TEXT NOT NULL DEFAULT ''");
+ensureColumn("sessions", "provider", "TEXT NOT NULL DEFAULT 'copilot'");
+ensureColumn("sessions", "external_id", "TEXT NOT NULL DEFAULT ''");
+db.exec("UPDATE sessions SET external_id = id WHERE external_id = ''");
 ensureColumn("tasks", "status", "TEXT NOT NULL DEFAULT 'next'");
 db.exec("UPDATE tasks SET status = CASE WHEN completed = 1 THEN 'done' ELSE 'next' END WHERE status IS NULL OR status = ''");
 const aicUnitVersion = db.prepare("SELECT value FROM app_metadata WHERE key = 'aic_unit_version'").get()?.value;
@@ -144,7 +147,7 @@ const server = http.createServer(async (request, response) => {
   try {
     if (!isAllowedRequest(request)) return json(response, 403, { error: "Request origin is not allowed" });
     const url = new URL(request.url, baseUrl);
-    if (url.pathname === "/api/health") return json(response, 200, { ok: true, version: "0.1.0" });
+    if (url.pathname === "/api/health") return json(response, 200, { ok: true, version: "0.2.0" });
     if (url.pathname === "/api/events" && request.method === "GET") return openEventStream(request, response);
     if (url.pathname === "/api/sessions" && request.method === "GET") return listSessions(url, response);
     if (url.pathname === "/api/stats" && request.method === "GET") return getStats(response);
@@ -156,7 +159,10 @@ const server = http.createServer(async (request, response) => {
       return json(response, 200, result);
     }
     if (url.pathname.startsWith("/api/hooks/") && request.method === "POST") {
-      return handleHook(url.pathname.slice("/api/hooks/".length), await body(request), response);
+      const hookPath = url.pathname.slice("/api/hooks/".length).split("/");
+      const provider = hookPath.length > 1 ? hookPath[0] : "copilot";
+      const eventName = hookPath.length > 1 ? hookPath[1] : hookPath[0];
+      return handleHook(provider, eventName, await body(request), response);
     }
 
     const match = url.pathname.match(/^\/api\/sessions\/([^/]+)(?:\/([^/]+))?$/);
@@ -191,7 +197,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Copilot Session Hub: ${baseUrl}`);
+  console.log(`AI Session Hub: ${baseUrl}`);
 });
 
 function listSessions(url, response) {
@@ -330,18 +336,23 @@ function getProjects(response) {
   json(response, 200, rows);
 }
 
-function handleHook(eventName, payload, response) {
-  const id = payload.sessionId;
-  if (!id) return json(response, 400, { error: "Missing sessionId" });
+function handleHook(provider, eventName, payload, response) {
+  if (!providerConfig(provider)) return json(response, 400, { error: "Unsupported provider" });
+  const externalId = cleanText(payload.sessionId, 300);
+  if (!externalId) return json(response, 400, { error: "Missing sessionId" });
+  const id = provider === "copilot" ? externalId : `${provider}:${externalId}`;
   const timestamp = Number(payload.timestamp) || Date.now();
   const existing = db.prepare("SELECT id FROM sessions WHERE id = ?").get(id);
   if (!existing) {
     const git = gitContext(payload.cwd);
     db.prepare(`
       INSERT INTO sessions
-      (id, title, cwd, repository, branch, source, status, started_at, updated_at, needs_review)
-      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, 1)
-    `).run(id, suggestedTitle(payload.cwd), payload.cwd || "", git.repository, git.branch, payload.source || "startup", timestamp, timestamp);
+      (id, external_id, provider, title, cwd, repository, branch, source, status, started_at, updated_at, needs_review)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 1)
+    `).run(
+      id, externalId, provider, suggestedTitle(payload.cwd, provider), payload.cwd || "",
+      git.repository, git.branch, payload.source || "startup", timestamp, timestamp
+    );
   }
 
   if (eventName === "sessionStart") {
@@ -359,14 +370,14 @@ function handleHook(eventName, payload, response) {
   }
 
   addEvent(id, eventName, eventDetail(eventName, payload), timestamp);
-  if (["agentStop", "preCompact", "sessionEnd"].includes(eventName)) syncSessionFiles(id);
+  if (provider === "copilot" && ["agentStop", "preCompact", "sessionEnd"].includes(eventName)) syncSessionFiles(id);
   broadcast("sessions-changed", { id, eventName });
   json(response, 200, { ok: true, sessionId: id });
 }
 
 function checkpoint(id, data, response) {
   const existing = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
-  if (!existing) return json(response, 404, { error: "Session not found. Start the tracked Copilot session first." });
+  if (!existing) return json(response, 404, { error: "Session not found. Start the tracked AI CLI session first." });
   const now = Date.now();
   const title = data.title === undefined ? existing.title : (cleanText(data.title, 120) || existing.title);
   const summary = data.summary === undefined ? existing.summary : cleanText(data.summary, 3000);
@@ -375,7 +386,16 @@ function checkpoint(id, data, response) {
   const unresolved = data.unresolved === undefined ? parseArray(existing.unresolved) : cleanArray(data.unresolved, 20, 500);
   const decisions = data.decisions === undefined ? parseArray(existing.decisions) : cleanArray(data.decisions, 20, 500);
   const tasks = data.tasks === undefined ? null : cleanArray(data.tasks, 20, 500);
-  const metrics = readSessionMetrics(id, existing.transcript_path);
+  const metrics = existing.provider === "copilot"
+    ? readSessionMetrics(id, existing.transcript_path)
+    : {
+        aiCredits: existing.ai_credits,
+        currentTokens: existing.current_tokens,
+        contextLimit: existing.context_limit,
+        model: existing.model,
+        contextTier: existing.context_tier,
+        capturedAt: existing.metrics_at
+      };
   db.exec("BEGIN");
   try {
     db.prepare(`
@@ -510,16 +530,18 @@ function deleteWorkItem(id, response) {
 }
 
 function resumeSession(id, response) {
-  const row = db.prepare("SELECT cwd FROM sessions WHERE id = ?").get(id);
+  const row = db.prepare("SELECT cwd, provider, external_id FROM sessions WHERE id = ?").get(id);
   if (!row) return json(response, 404, { error: "Session not found" });
   if (!row.cwd || !existsSync(row.cwd)) {
     return json(response, 409, { error: "The original working directory no longer exists. Restore or recreate that folder, then try resuming again." });
   }
   const cwd = row.cwd;
-  const copilotPath = resolveExecutable("copilot");
-  if (!copilotPath) return json(response, 409, { error: "Copilot CLI was not found on PATH" });
+  const config = providerConfig(row.provider);
+  const executablePath = resolveExecutable(config.executable);
+  if (!executablePath) return json(response, 409, { error: `${config.name} was not found on PATH` });
+  const resumeArgs = config.resumeArgs(row.external_id || id);
   if (process.platform === "darwin") {
-    const command = `cd ${shellQuote(cwd)} && exec ${shellQuote(copilotPath)} --resume=${shellQuote(id)}`;
+    const command = `cd ${shellQuote(cwd)} && exec ${[executablePath, ...resumeArgs].map(shellQuote).join(" ")}`;
     const child = spawn("osascript", [
       "-e", "tell application \"Terminal\"",
       "-e", `do script ${appleScriptString(command)}`,
@@ -535,7 +557,7 @@ function resumeSession(id, response) {
   }
   const pwshPath = resolveExecutable("pwsh.exe") || "pwsh.exe";
   const terminalPath = resolveExecutable("wt.exe");
-  const command = `& '${escapePowerShellLiteral(copilotPath)}' --resume='${escapePowerShellLiteral(id)}'`;
+  const command = `& '${escapePowerShellLiteral(executablePath)}' ${resumeArgs.map((arg) => `'${escapePowerShellLiteral(arg)}'`).join(" ")}`;
   const executable = terminalPath || pwshPath;
   const args = terminalPath
     ? ["-d", cwd, pwshPath, "-NoExit", "-Command", command]
@@ -549,6 +571,35 @@ function resumeSession(id, response) {
   child.unref();
   addEvent(id, "resume-requested", "Resume launched from dashboard", Date.now());
   json(response, 200, { ok: true });
+}
+
+function providerConfig(provider) {
+  return {
+    copilot: {
+      name: "GitHub Copilot CLI",
+      executable: "copilot",
+      resumeArgs: (id) => [`--resume=${id}`],
+      resumeCommand: (id) => `copilot --resume=${id}`
+    },
+    claude: {
+      name: "Claude Code",
+      executable: "claude",
+      resumeArgs: (id) => ["--resume", id],
+      resumeCommand: (id) => `claude --resume ${id}`
+    },
+    codex: {
+      name: "Codex CLI",
+      executable: "codex",
+      resumeArgs: (id) => ["resume", id],
+      resumeCommand: (id) => `codex resume ${id}`
+    },
+    gemini: {
+      name: "Gemini CLI",
+      executable: "gemini",
+      resumeArgs: (id) => ["--resume", id],
+      resumeCommand: (id) => `gemini --resume ${id}`
+    }
+  }[provider];
 }
 
 function resolveExecutable(command) {
@@ -662,7 +713,7 @@ async function replayPendingEvents() {
       try {
         const entry = JSON.parse(line);
         const fakeResponse = { writeHead() {}, end() {} };
-        handleHook(entry.eventName, entry.payload, fakeResponse);
+        handleHook(entry.provider || "copilot", entry.eventName, entry.payload, fakeResponse);
       } catch (error) {
         console.error("Failed to replay queued event:", error.message);
       }
@@ -673,8 +724,14 @@ async function replayPendingEvents() {
 }
 
 function sessionRecord(row) {
+  const provider = row.provider || "copilot";
+  const externalId = row.external_id || row.id;
   return {
     id: row.id,
+    externalId,
+    provider,
+    providerName: providerConfig(provider)?.name || provider,
+    resumeCommand: providerConfig(provider)?.resumeCommand(externalId) || "",
     title: row.title,
     summary: row.summary,
     initialQuestion: row.initial_question,
@@ -782,8 +839,10 @@ function gitContext(cwd) {
   }
 }
 
-function suggestedTitle(cwd) {
-  if (!cwd) return "New Copilot session";
+function suggestedTitle(cwd, provider = "copilot") {
+  if (!cwd) return provider === "copilot"
+    ? "New Copilot session"
+    : `New ${providerConfig(provider)?.name || "AI"} session`;
   return `${cwd.split(/[\\/]/).filter(Boolean).at(-1) || "Workspace"} session`;
 }
 
@@ -791,7 +850,7 @@ function eventDetail(eventName, payload) {
   if (eventName === "sessionStart") return payload.source === "resume" ? "Session resumed" : "Session started";
   if (eventName === "sessionEnd") return `Session ended: ${payload.reason || "unknown"}`;
   if (eventName === "preCompact") return `Context compacted: ${payload.trigger || "unknown"}`;
-  if (eventName === "agentStop") return "Copilot completed a turn";
+  if (eventName === "agentStop") return "AI assistant completed a turn";
   return eventName;
 }
 
@@ -930,9 +989,9 @@ function importHistory() {
     if (!sourceFiles) markAllFileHistoryFailure("SOURCE_SCHEMA_UNSUPPORTED");
     const insert = db.prepare(`
       INSERT OR IGNORE INTO sessions
-      (id, title, summary, initial_question, questions, last_action, next_action, cwd, repository, branch, source,
+      (id, external_id, provider, title, summary, initial_question, questions, last_action, next_action, cwd, repository, branch, source,
        status, started_at, updated_at, ended_at, end_reason, needs_review, imported)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'history-import', 'paused', ?, ?, ?, 'historical', 1, 1)
+      VALUES (?, ?, 'copilot', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'history-import', 'paused', ?, ?, ?, 'historical', 1, 1)
     `);
     const addImportEvent = db.prepare(`
       INSERT INTO events(session_id, type, detail, created_at)
@@ -967,6 +1026,7 @@ function importHistory() {
         if (!existing) {
           const title = historyTitle(rawTitle, source.cwd);
           const result = insert.run(
+            source.id,
             source.id,
             title || suggestedTitle(source.cwd),
             summary,

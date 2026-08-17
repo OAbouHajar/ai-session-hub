@@ -16,7 +16,14 @@ DOMAIN="gui/$(id -u)"
 
 curl --silent --max-time 2 --request POST \
   "http://127.0.0.1:43120/api/shutdown" >/dev/null 2>&1 || true
-copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
+if command -v node >/dev/null 2>&1 && [[ -f "$INSTALL_ROOT/scripts/provider-hooks.mjs" ]]; then
+  node "$INSTALL_ROOT/scripts/provider-hooks.mjs" uninstall "$INSTALL_ROOT"
+elif [[ -f "$INSTALL_ROOT/scripts/provider-hooks.mjs" ]]; then
+  echo "Warning: Node.js is unavailable, so AI CLI provider hooks could not be removed." >&2
+fi
+if command -v copilot >/dev/null 2>&1; then
+  copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
+fi
 launchctl bootout "$DOMAIN" "$PLIST_PATH" >/dev/null 2>&1 || true
 if [[ -f "$PLIST_PATH" ]]; then
   rm "$PLIST_PATH"

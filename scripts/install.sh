@@ -29,8 +29,14 @@ if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.
   echo "Node.js 22.5 or newer is required. Found ${NODE_VERSION}." >&2
   exit 1
 fi
-if ! command -v copilot >/dev/null 2>&1; then
-  echo "GitHub Copilot CLI is required. Install it, sign in, and run this installer again." >&2
+PROVIDER_COUNT=0
+for provider in copilot claude codex gemini; do
+  if command -v "$provider" >/dev/null 2>&1; then
+    PROVIDER_COUNT=$((PROVIDER_COUNT + 1))
+  fi
+done
+if [[ "$PROVIDER_COUNT" -eq 0 ]]; then
+  echo "Install at least one supported AI CLI: GitHub Copilot, Claude Code, Codex, or Gemini." >&2
   exit 1
 fi
 
@@ -108,10 +114,13 @@ start_service() {
   launchctl kickstart -k "$DOMAIN/$LABEL"
 }
 
-copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
-if ! INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
-  start_service
-  cat >&2 <<EOF
+node "$INSTALL_ROOT/scripts/provider-hooks.mjs" install "$INSTALL_ROOT"
+
+if command -v copilot >/dev/null 2>&1; then
+  copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
+  if ! INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
+    start_service
+    cat >&2 <<EOF
 AI Session Hub application files were updated, but the Copilot plugin could not be refreshed.
 This usually means an active Copilot session is using the plugin files.
 
@@ -121,9 +130,10 @@ Exit all Copilot CLI sessions, then run:
 Copilot plugin error:
 $INSTALL_OUTPUT
 EOF
-  exit 1
+    exit 1
+  fi
+  printf '%s\n' "$INSTALL_OUTPUT"
 fi
-printf '%s\n' "$INSTALL_OUTPUT"
 
 start_service
 HEALTHY=false
@@ -147,4 +157,4 @@ fi
 echo "AI Session Hub installed."
 echo "Dashboard: http://127.0.0.1:43120"
 echo "Data: $DATA_ROOT"
-echo "Restart Copilot CLI so the plugin hooks are loaded."
+echo "Restart each supported AI CLI so the Session Hub hooks are loaded."

@@ -17,8 +17,10 @@ if ($NodeVersion -lt [version]"22.5.0") {
     throw "Node.js 22.5 or newer is required. Found $NodeVersion."
 }
 
-if (-not (Get-Command copilot -ErrorAction SilentlyContinue)) {
-    throw "GitHub Copilot CLI is required. Install it, sign in, and run this installer again."
+$ProviderCommands = @("copilot", "claude", "codex", "gemini")
+$InstalledProviders = @($ProviderCommands | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue })
+if ($InstalledProviders.Count -eq 0) {
+    throw "Install at least one supported AI CLI: GitHub Copilot, Claude Code, Codex, or Gemini."
 }
 
 # Stop the service before replacing files or reinstalling the plugin. The running
@@ -52,16 +54,22 @@ $ServerPath = Join-Path $InstallRoot "server\server.mjs"
 $StartupContent = "@echo off`r`nstart `"`" /min node `"$ServerPath`"`r`n"
 Set-Content -LiteralPath $StartupScript -Value $StartupContent -Encoding ASCII
 
-try {
-    copilot plugin uninstall copilot-session-hub 2>$null | Out-Null
-} catch {
-}
-$InstallOutput = copilot plugin install $InstallRoot 2>&1
+& node (Join-Path $InstallRoot "scripts\provider-hooks.mjs") install $InstallRoot
 if ($LASTEXITCODE -ne 0) {
-    $InstallMessage = ($InstallOutput | Out-String).Trim()
-    Start-Process -FilePath "node" -ArgumentList "`"$ServerPath`"" -WorkingDirectory $InstallRoot -WindowStyle Hidden
-    throw @"
-Copilot Session Hub application files were updated, but the Copilot plugin could not be refreshed.
+    throw "Could not configure AI CLI provider hooks."
+}
+
+if (Get-Command copilot -ErrorAction SilentlyContinue) {
+    try {
+        copilot plugin uninstall copilot-session-hub 2>$null | Out-Null
+    } catch {
+    }
+    $InstallOutput = copilot plugin install $InstallRoot 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $InstallMessage = ($InstallOutput | Out-String).Trim()
+        Start-Process -FilePath "node" -ArgumentList "`"$ServerPath`"" -WorkingDirectory $InstallRoot -WindowStyle Hidden
+        throw @"
+AI Session Hub application files were updated, but the Copilot plugin could not be refreshed.
 This usually means an active Copilot session is using the plugin files.
 
 Exit all Copilot CLI sessions, then run:
@@ -70,8 +78,9 @@ pwsh -File "$InstallRoot\scripts\install.ps1" -NoOpen
 Copilot plugin error:
 $InstallMessage
 "@
+    }
+    $InstallOutput | Write-Host
 }
-$InstallOutput | Write-Host
 
 Start-Process -FilePath "node" -ArgumentList "`"$ServerPath`"" -WorkingDirectory $InstallRoot -WindowStyle Hidden
 $Healthy = $false
@@ -94,6 +103,6 @@ if (-not $NoOpen) {
     Start-Process "http://127.0.0.1:43120"
 }
 
-Write-Host "Copilot Session Hub installed." -ForegroundColor Green
+Write-Host "AI Session Hub installed." -ForegroundColor Green
 Write-Host "Dashboard: http://127.0.0.1:43120"
-Write-Host "Restart Copilot CLI so the plugin hooks are loaded."
+Write-Host "Restart each supported AI CLI so the Session Hub hooks are loaded."

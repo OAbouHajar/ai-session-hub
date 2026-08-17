@@ -189,6 +189,39 @@ test("checkpoint task reconciliation preserves board identities and statuses", a
   assert.equal(session.tasks.find((task) => task.id === taskB.id).status, "blocked");
 });
 
+test("tracks provider sessions with collision-safe IDs and resume commands", async () => {
+  const externalId = "shared-session-id";
+  let response = await fetch(`${baseUrl}/api/hooks/claude/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      sessionId: externalId,
+      timestamp: Date.now(),
+      cwd: process.cwd(),
+      source: "startup",
+      transcriptPath: "/tmp/claude-session.jsonl"
+    })
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).sessionId, `claude:${externalId}`);
+
+  response = await fetch(`${baseUrl}/api/hooks/gemini/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: externalId, timestamp: Date.now(), cwd: process.cwd(), source: "startup" })
+  });
+  assert.equal(response.status, 200);
+
+  const claude = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(`claude:${externalId}`)}`).then((result) => result.json());
+  const gemini = await fetch(`${baseUrl}/api/sessions/${encodeURIComponent(`gemini:${externalId}`)}`).then((result) => result.json());
+  assert.equal(claude.provider, "claude");
+  assert.equal(claude.externalId, externalId);
+  assert.equal(claude.providerName, "Claude Code");
+  assert.equal(claude.resumeCommand, `claude --resume ${externalId}`);
+  assert.equal(gemini.provider, "gemini");
+  assert.equal(gemini.resumeCommand, `gemini --resume ${externalId}`);
+});
+
 async function waitForHealth() {
   for (let attempt = 0; attempt < 40; attempt++) {
     try {

@@ -1,9 +1,9 @@
 {
   "name": "copilot-session-hub",
-  "description": "Persistent session continuity dashboard with wrap checkpoints for GitHub Copilot CLI.",
-  "version": "0.1.0",
+  "description": "Persistent session continuity dashboard with wrap checkpoints for AI coding CLIs.",
+  "version": "0.2.0",
   "author": {
-    "name": "Copilot Session Hub"
+    "name": "AI Session Hub"
   },
   "license": "MIT",
   "keywords": ["sessions", "continuity", "dashboard", "wrap"],

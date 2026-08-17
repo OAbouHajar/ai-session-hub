@@ -5,9 +5,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 
-const eventName = process.argv[2];
+const providers = new Set(["copilot", "claude", "codex", "gemini"]);
+const provider = providers.has(process.argv[2]) ? process.argv[2] : "copilot";
+const eventName = providers.has(process.argv[2]) ? process.argv[3] : process.argv[2];
 const input = await readStdin();
-const payload = input ? JSON.parse(input) : {};
+const rawPayload = input ? JSON.parse(input) : {};
+const payload = normalizePayload(rawPayload);
 const url = process.env.COPILOT_SESSION_HUB_URL || "http://127.0.0.1:43120";
 
 let response = await postEvent();
@@ -25,19 +28,18 @@ if (!response) {
 
 if (eventName === "sessionStart") {
   const body = await response.json();
-  process.stdout.write(JSON.stringify({
-    additionalContext:
-      `Copilot Session Hub is tracking this session. Session ID: ${payload.sessionId}. ` +
-      `Checkpoint endpoint: ${url}/api/sessions/${encodeURIComponent(payload.sessionId)}/checkpoint. ` +
-      `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.`
-  }));
+  const context =
+    `AI Session Hub is tracking this ${providerName(provider)} session. Session ID: ${body.sessionId}. ` +
+    `Checkpoint endpoint: ${url}/api/sessions/${encodeURIComponent(body.sessionId)}/checkpoint. ` +
+    `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.`;
+  process.stdout.write(JSON.stringify(sessionStartOutput(context)));
 } else {
   process.stdout.write("{}");
 }
 
 async function postEvent() {
   try {
-    const response = await fetch(`${url}/api/hooks/${eventName}`, {
+    const response = await fetch(`${url}/api/hooks/${provider}/${eventName}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -64,7 +66,7 @@ async function queueEvent() {
   const dataDir = defaultDataDir();
   const queuePath = join(dataDir, "pending-events.jsonl");
   await mkdir(dataDir, { recursive: true });
-  await appendFile(queuePath, `${JSON.stringify({ eventName, payload })}\n`, "utf8");
+  await appendFile(queuePath, `${JSON.stringify({ provider, eventName, payload })}\n`, "utf8");
 }
 
 function defaultDataDir() {
@@ -88,4 +90,35 @@ async function readStdin() {
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function normalizePayload(value) {
+  const timestamp = typeof value.timestamp === "string"
+    ? Date.parse(value.timestamp)
+    : Number(value.timestamp);
+  return {
+    ...value,
+    sessionId: value.sessionId || value.session_id,
+    transcriptPath: value.transcriptPath || value.transcript_path || "",
+    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now()
+  };
+}
+
+function sessionStartOutput(context) {
+  if (provider === "copilot") return { additionalContext: context };
+  return {
+    hookSpecificOutput: {
+      hookEventName: rawPayload.hook_event_name || "SessionStart",
+      additionalContext: context
+    }
+  };
+}
+
+function providerName(value) {
+  return {
+    copilot: "GitHub Copilot CLI",
+    claude: "Claude Code",
+    codex: "Codex CLI",
+    gemini: "Gemini CLI"
+  }[value] || value;
 }

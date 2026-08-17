@@ -7,14 +7,22 @@ try {
 } catch {
 }
 
-try {
-    copilot plugin uninstall copilot-session-hub
-} catch {
+if ((Get-Command node -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath (Join-Path $InstallRoot "scripts\provider-hooks.mjs"))) {
+    & node (Join-Path $InstallRoot "scripts\provider-hooks.mjs") uninstall $InstallRoot
+} elseif (Test-Path -LiteralPath (Join-Path $InstallRoot "scripts\provider-hooks.mjs")) {
+    Write-Warning "Node.js is unavailable, so AI CLI provider hooks could not be removed."
+}
+
+if (Get-Command copilot -ErrorAction SilentlyContinue) {
+    try {
+        copilot plugin uninstall copilot-session-hub
+    } catch {
+    }
 }
 
 if (Test-Path -LiteralPath $StartupScript) {
     Remove-Item -LiteralPath $StartupScript -Force
 }
 
-Write-Host "Copilot Session Hub uninstalled. Session data remains in %LOCALAPPDATA%\CopilotSessionHub." -ForegroundColor Yellow
+Write-Host "AI Session Hub uninstalled. Session data remains in %LOCALAPPDATA%\CopilotSessionHub." -ForegroundColor Yellow
 Write-Host "The application files can be removed from: $InstallRoot"

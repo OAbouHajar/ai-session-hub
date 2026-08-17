@@ -2,7 +2,7 @@
 description: Wrap the session and save an explicit todo list for the next session
 ---
 
-Wrap the current session into Copilot Session Hub and preserve the user's intended next-session todo list.
+Wrap the current session into AI Session Hub and preserve the user's intended next-session todo list.
 
 1. Read the full substantive conversation, including completed work, failed checks, blockers, corrections, and promises.
 2. Determine the todo list:

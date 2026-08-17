@@ -305,7 +305,12 @@ function renderSessionList() {
     const copy = element("span", "session-copy");
     const title = element("strong", "", session.title);
     const workspace = session.repository ? basename(session.repository) : basename(session.cwd) || "No workspace";
-    const context = element("span", "session-context-line", session.isProject ? `Project · ${workspace}` : workspace);
+    const provider = session.providerName || "GitHub Copilot CLI";
+    const context = element(
+      "span",
+      "session-context-line",
+      session.isProject ? `Project · ${provider} · ${workspace}` : `${provider} · ${workspace}`
+    );
     const visibleMatch = session.searchMatch && session.searchMatch.type !== "title";
     const previewText = visibleMatch
       ? `Matched ${session.searchMatch.type}: ${session.searchMatch.text}`
@@ -354,8 +359,8 @@ function renderDetail() {
   elements.repoChip.querySelector("span").textContent = basename(session.repository) || basename(session.cwd) || "Workspace";
   elements.repoChip.title = session.cwd || "No working directory";
   elements.branchChip.querySelector("span").textContent = session.branch || "No branch";
-  elements.sessionIdChip.querySelector("span").textContent = `Session ID: ${shortSessionId(session.id)}`;
-  elements.sessionIdChip.title = `Copy copilot --resume=${session.id}`;
+  elements.sessionIdChip.querySelector("span").textContent = `Session ID: ${shortSessionId(session.externalId || session.id)}`;
+  elements.sessionIdChip.title = `Copy ${session.resumeCommand}`;
   elements.sessionDuration.textContent = formatDuration(session.startedAt, session.endedAt || Date.now());
   renderSessionMetrics(session.metrics);
   elements.trackProjectButton.classList.toggle("tracked", session.isProject);
@@ -396,7 +401,7 @@ function renderFiles() {
   }
   if (!files.length) {
     const text = status === "empty"
-      ? "Copilot did not record any worked-on files for this session."
+      ? `${state.selected.providerName || "The AI CLI"} did not record any worked-on files for this session.`
       : "File evidence is not available yet. The checkpoint summary is still usable.";
     elements.fileList.append(element("li", "empty-copy", text));
   } else if (state.selected.filesTruncated) {
@@ -797,12 +802,12 @@ async function toggleProjectTracking() {
 async function resumeSelected() {
   if (!state.selected) return;
   await api(`/api/sessions/${encodeURIComponent(state.selected.id)}/resume`, { method: "POST" });
-  toast("Copilot resume launched in a new terminal");
+  toast(`${state.selected.providerName || "AI CLI"} resume launched in a new terminal`);
 }
 
 async function copyResumeCommand() {
   if (!state.selected) return;
-  const command = `copilot --resume=${state.selected.id}`;
+  const command = state.selected.resumeCommand;
   try {
     await navigator.clipboard.writeText(command);
     toast("Resume command copied");

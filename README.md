@@ -2,7 +2,7 @@
 
 **Local-first continuity for AI coding sessions. Find past work, understand where it stopped, and continue without reconstructing the whole conversation.**
 
-> AI Session Hub currently integrates with **GitHub Copilot CLI**. The project is being designed toward a provider-neutral model for additional AI CLI tools.
+> AI Session Hub integrates with **GitHub Copilot CLI**, **Claude Code**, **OpenAI Codex CLI**, and **Google Gemini CLI**.
 >
 > This is an independent open source project and is not an official GitHub or Microsoft product.
 
@@ -26,7 +26,7 @@ AI Session Hub turns session history into a searchable continuity layer. It answ
 
 ## What you get
 
-- **Automatic session tracking** through supported GitHub Copilot CLI lifecycle hooks.
+- **Automatic session tracking** through supported AI CLI lifecycle hooks.
 - **Wrapped-session focus** so high-quality continuity checkpoints appear first.
 - **Normal search** across titles, summaries, actions, tasks, projects, folders, and worked-on files.
 - **Recall-first session details** with summary, last completed action, recommended next action, and resume command.
@@ -48,11 +48,11 @@ Copy this platform-aware prompt into GitHub Copilot CLI:
 Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
 
 Detect the operating system first and use the matching setup:
-- On macOS, verify git, Node.js 22.5+, and Copilot CLI; use `./scripts/install.sh --no-open`; and preserve all existing data under `~/Library/Application Support/CopilotSessionHub` or the legacy `~/.copilot-session-hub` location.
-- On Windows, verify git, PowerShell 7, Node.js 22.5+, and Copilot CLI; use `pwsh -File .\scripts\install.ps1 -NoOpen`; and preserve all existing data under `%LOCALAPPDATA%\CopilotSessionHub`.
+- On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI (GitHub Copilot, Claude Code, Codex, or Gemini); use `./scripts/install.sh --no-open`; and preserve all existing data under `~/Library/Application Support/CopilotSessionHub` or the legacy `~/.copilot-session-hub` location.
+- On Windows, verify git, PowerShell 7, Node.js 22.5+, and at least one supported AI CLI; use `pwsh -File .\scripts\install.ps1 -NoOpen`; and preserve all existing data under `%LOCALAPPDATA%\CopilotSessionHub`.
 - On any other operating system, stop and report that it is unsupported.
 
-Verify that Copilot CLI is signed in. Clone the latest `main` branch into a temporary directory, read the README and the matching installer before running it, and do not delete or overwrite existing session data. If a prerequisite is missing, report the exact official installation command or link. If the plugin cannot be refreshed because an active Copilot session is using it, report the installer's exact retry command and do not claim success. After installation, verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version and any remaining action. Proceed autonomously and only ask before administrator-required or destructive actions.
+Verify that each detected AI CLI is usable and signed in. Clone the latest `main` branch into a temporary directory, read the README and the matching installer before running it, and do not delete or overwrite existing session data or unrelated AI CLI settings. If a prerequisite is missing, report the exact official installation command or link. If a plugin or hook cannot be refreshed because an active AI CLI session is using it, report the installer's exact retry command and do not claim success. After installation, verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining action. Proceed autonomously and only ask before administrator-required or destructive actions.
 ```
 
 The full Copilot installation prompts for [macOS](docs/copilot-install-prompt-macos.md) and [Windows](docs/copilot-install-prompt.md) include prerequisite recovery, plugin-lock handling, and verification steps.
@@ -65,7 +65,7 @@ Requirements:
 - Git
 - PowerShell 7 (`pwsh`) on Windows
 - Node.js 22.5 or newer
-- GitHub Copilot CLI, signed in
+- At least one supported AI CLI, signed in
 
 macOS:
 
@@ -83,13 +83,24 @@ cd ai-session-hub
 pwsh -File .\scripts\install.ps1
 ```
 
-Restart Copilot CLI after installation so the plugin hooks and commands are loaded.
+The installer detects installed providers and adds only AI Session Hub hook entries while preserving existing settings. Restart each detected AI CLI after installation so its hooks are loaded.
+
+## Supported providers
+
+| Provider | Tracking | Resume from dashboard | Integration |
+|---|---|---|---|
+| GitHub Copilot CLI | Yes | Yes | Plugin hooks and commands |
+| Claude Code | Yes | Yes | User lifecycle hooks |
+| OpenAI Codex CLI | Yes | Yes | User lifecycle hooks |
+| Google Gemini CLI | Yes | Yes | User lifecycle hooks |
+
+AI Session Hub uses documented lifecycle hook payloads as its stable integration boundary. Provider transcript formats are not treated as stable APIs.
 
 ## How to use it
 
-1. Start or resume a GitHub Copilot CLI session.
+1. Start or resume a session in a supported AI CLI.
 2. Work normally; the lifecycle appears in AI Session Hub.
-3. Before stopping, use one of the wrap commands:
+3. Before stopping, ask the assistant to wrap or checkpoint the session. In GitHub Copilot CLI, you can also use:
 
 | Command | Purpose |
 |---|---|
@@ -103,9 +114,7 @@ Restart Copilot CLI after installation so the plugin hooks and commands are load
 5. Review the stopping point and next action.
 6. Resume from the dashboard or copy:
 
-```text
-copilot --resume=<session-id>
-```
+The copied resume command matches the session provider, such as `copilot --resume=<id>`, `claude --resume <id>`, `codex resume <id>`, or `gemini --resume <id>`.
 
 ## Manage a session as a project board
 
@@ -131,7 +140,7 @@ _Board demo data is fictional._
 ## How it works
 
 ```text
-GitHub Copilot CLI hooks
+Supported AI CLI hooks
           |
           v
 Local Node.js service on 127.0.0.1

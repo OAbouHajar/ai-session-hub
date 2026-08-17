@@ -1,10 +1,10 @@
 {
   "name": "copilot-session-hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "Local-first continuity dashboard for GitHub Copilot CLI sessions",
+  "description": "Local-first continuity dashboard for AI coding CLI sessions",
   "repository": {
     "type": "git",
     "url": "https://github.com/OAbouHajar/ai-session-hub.git"

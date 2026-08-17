@@ -2,7 +2,7 @@
 description: Save a high-quality continuity checkpoint for the current Copilot session
 ---
 
-Wrap the current session into Copilot Session Hub.
+Wrap the current session into AI Session Hub.
 
 1. Use the current conversation and tool history to produce:
    - A concise session title.

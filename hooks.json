@@ -4,32 +4,32 @@
     "sessionStart": [
       {
         "type": "command",
-        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" sessionStart",
-        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionStart",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" copilot sessionStart",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" copilot sessionStart",
         "timeoutSec": 8
       }
     ],
     "agentStop": [
       {
         "type": "command",
-        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" agentStop",
-        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" agentStop",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" copilot agentStop",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" copilot agentStop",
         "timeoutSec": 8
       }
     ],
     "sessionEnd": [
       {
         "type": "command",
-        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" sessionEnd",
-        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" sessionEnd",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" copilot sessionEnd",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" copilot sessionEnd",
         "timeoutSec": 8
       }
     ],
     "preCompact": [
       {
         "type": "command",
-        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" preCompact",
-        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" preCompact",
+        "bash": "node \"${PLUGIN_ROOT}/scripts/hook-client.mjs\" copilot preCompact",
+        "powershell": "node \"${PLUGIN_ROOT}\\scripts\\hook-client.mjs\" copilot preCompact",
         "timeoutSec": 8
       }
     ]

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/ai-session-hub-logo.svg" alt="AI Session Hub — Find past work. Continue with context." width="720">
+  <img src="assets/logo.png" alt="AI Session Hub — Remember. Resume. Continue." width="480">
 </p>
 
 <p align="center"><strong>Local-first continuity for AI coding sessions.</strong></p>

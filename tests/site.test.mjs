@@ -12,7 +12,10 @@ test("landing page presents the project and AI-first installation path", async (
     readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8")
   ]);
 
-  assert.match(html, /Your AI session ended/);
+  assert.match(html, /Stop starting every AI coding session from zero/);
+  assert.match(html, /Why do you need it/);
+  assert.match(html, /Without Session Hub/);
+  assert.match(html, /With Session Hub/);
   assert.match(html, /Ask your AI CLI to install it/);
   assert.match(html, /id="installPrompt"/);
   assert.match(html, /Copilot/);
@@ -20,7 +23,6 @@ test("landing page presents the project and AI-first installation path", async (
   assert.match(html, /OpenAI Codex/);
   assert.match(html, /Google Gemini/);
   assert.match(html, /screenshots\/sessions-screenshot\.png/);
-  assert.match(html, /screenshots\/board-screenshot\.png/);
   assert.match(script, /navigator\.clipboard\.writeText/);
   assert.match(workflow, /actions\/deploy-pages@v4/);
   assert.doesNotMatch(html, /<script[^>]+src=["']https?:/);

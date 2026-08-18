@@ -122,6 +122,7 @@ Copilot also includes:
 |---|---|
 | `/wrap` | Save a continuity checkpoint |
 | `/wrap-with-next` | Save a checkpoint with an explicit todo list |
+| `/unwrap` | Remove a session from Wrapped while preserving its saved data |
 | `/hub-update` | Prepare the latest stable release for safe installation |
 | `/kanban` | Build an ordered plan from unfinished work |
 | `/kanban-update` | Reconcile board state with actual progress |

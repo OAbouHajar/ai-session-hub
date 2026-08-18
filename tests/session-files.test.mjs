@@ -421,12 +421,13 @@ test("returns an actionable conflict when the resume workspace is missing", asyn
 });
 
 test("static UI retains recall-first and secondary-project contracts", async () => {
-  const [html, app, hookClient, wrap, wrapWithNext, hubUpdate, installPrompt, logoMark] = await Promise.all([
+  const [html, app, hookClient, wrap, wrapWithNext, unwrap, hubUpdate, installPrompt, logoMark] = await Promise.all([
     readFile(join(root, "public", "index.html"), "utf8"),
     readFile(join(root, "public", "app.js"), "utf8"),
     readFile(join(root, "scripts", "hook-client.mjs"), "utf8"),
     readFile(join(root, "commands", "wrap.md"), "utf8"),
     readFile(join(root, "commands", "wrap-with-next.md"), "utf8"),
+    readFile(join(root, "commands", "unwrap.md"), "utf8"),
     readFile(join(root, "commands", "hub-update.md"), "utf8"),
     readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8"),
     readFile(join(root, "public", "logo-mark.png"))
@@ -454,6 +455,7 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(app, /function openBoardTaskForm/);
   assert.match(app, /body: \{ text, status \}/);
   assert.match(app, /\/wrap-with-next/);
+  assert.match(app, /\/unwrap/);
   assert.match(app, /\/hub-update/);
   assert.match(app, /function refreshUpdateStatus/);
   assert.match(hookClient, /body\.update\?\.updateAvailable/);
@@ -462,6 +464,8 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);
   assert.match(wrapWithNext, /update\.updateAvailable/);
+  assert.match(unwrap, /"needsReview": true/);
+  assert.match(unwrap, /Do not clear or replace/);
   assert.match(hubUpdate, /exact `v\{latestVersion\}` tag/);
   assert.match(hubUpdate, /Do not run the installer inside the active AI CLI session/);
   assert.match(installPrompt, /Install AI Session Hub/);

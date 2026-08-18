@@ -102,6 +102,25 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
   assert.equal(session.needsReview, false);
   assert.equal(session.metrics.aiCredits, 18_943);
 
+  response = await fetch(`${baseUrl}/api/sessions/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ needsReview: true })
+  });
+  assert.equal(response.status, 200);
+  const unwrapped = await fetch(`${baseUrl}/api/sessions/${id}`).then((result) => result.json());
+  assert.equal(unwrapped.needsReview, true);
+  assert.equal(unwrapped.title, "Build session dashboard");
+  assert.equal(unwrapped.summary, "Implemented local continuity tracking.");
+  assert.equal(unwrapped.tasks.length, 2);
+
+  response = await fetch(`${baseUrl}/api/sessions/${id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ needsReview: false })
+  });
+  assert.equal(response.status, 200);
+
   response = await fetch(`${baseUrl}/api/tasks/${session.tasks[0].id}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },

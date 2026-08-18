@@ -26,6 +26,11 @@ const sessionHubCommands = [
     description: "Save the session plus an explicit list of what you want to do next time."
   },
   {
+    command: "/unwrap",
+    title: "Remove from Wrapped",
+    description: "Mark the session as needing wrap again without deleting its saved continuity data."
+  },
+  {
     command: "/hub-update",
     title: "Prepare a safe Session Hub update",
     description: "Stage the latest stable release and show the installer command to run after exiting active AI CLIs."

@@ -65,8 +65,16 @@ if (Get-Command copilot -ErrorAction SilentlyContinue) {
         copilot plugin uninstall copilot-session-hub 2>$null | Out-Null
     } catch {
     }
-    $InstallOutput = copilot plugin install $InstallRoot 2>&1
-    if ($LASTEXITCODE -ne 0) {
+    $PluginInstalled = $false
+    for ($Attempt = 0; $Attempt -lt 5; $Attempt++) {
+        $InstallOutput = copilot plugin install $InstallRoot 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $PluginInstalled = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $PluginInstalled) {
         $InstallMessage = ($InstallOutput | Out-String).Trim()
         Start-Process -FilePath "node" -ArgumentList "`"$ServerPath`"" -WorkingDirectory $InstallRoot -WindowStyle Hidden
         throw @"

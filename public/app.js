@@ -10,6 +10,7 @@ const state = {
   selectedProjectId: localStorage.getItem("sessionHub.projectId"),
   commandIndex: 0,
   update: null,
+  updateJob: null,
   info: null
 };
 let modalReturnFocus = null;
@@ -32,8 +33,8 @@ const sessionHubCommands = [
   },
   {
     command: "/hub-update",
-    title: "Prepare a safe Session Hub update",
-    description: "Stage the latest stable release and show the installer command to run after exiting active AI CLIs."
+    title: "Update Session Hub automatically",
+    description: "Download and verify the latest stable release, then install it automatically after this AI CLI exits."
   },
   {
     command: "/kanban",
@@ -377,8 +378,53 @@ function connectEvents() {
 }
 
 async function refreshUpdateStatus() {
-  const status = await api("/api/update");
+  let status;
+  let job;
+  try {
+    [status, job] = await Promise.all([api("/api/update"), api("/api/update/job")]);
+  } catch {
+    setTimeout(refreshUpdateStatus, 2000);
+    return;
+  }
   state.update = status;
+  state.updateJob = job;
+  const activeJob = ["preparing", "waiting_for_exit", "installing"].includes(job.state);
+  if (activeJob) {
+    elements.updateBanner.classList.remove("hidden");
+    elements.updateReleaseLink.classList.add("hidden");
+    elements.copyUpdateCommand.classList.add("hidden");
+    elements.dismissUpdate.classList.add("hidden");
+    const messages = {
+      preparing: [`Preparing AI Session Hub ${job.toVersion}`, "Downloading and verifying the stable release."],
+      waiting_for_exit: [`AI Session Hub ${job.toVersion} is ready`, "Exit active AI CLI sessions. Installation will finish automatically."],
+      installing: [`Installing AI Session Hub ${job.toVersion}`, "The dashboard will restart automatically."]
+    };
+    [elements.updateTitle.textContent, elements.updateDetail.textContent] = messages[job.state];
+    setTimeout(refreshUpdateStatus, 2000);
+    return;
+  }
+  const terminalJob = ["succeeded", "succeeded_with_warnings", "failed"].includes(job.state) &&
+    localStorage.getItem("sessionHub.dismissedUpdateJob") !== job.id;
+  if (terminalJob) {
+    elements.updateBanner.classList.remove("hidden");
+    const succeeded = ["succeeded", "succeeded_with_warnings"].includes(job.state);
+    elements.updateReleaseLink.classList.toggle("hidden", job.state === "failed");
+    elements.copyUpdateCommand.classList.toggle("hidden", succeeded);
+    elements.dismissUpdate.classList.remove("hidden");
+    elements.updateTitle.textContent = succeeded
+      ? `Updated to AI Session Hub ${job.toVersion}`
+      : `AI Session Hub ${job.toVersion} could not be installed`;
+    elements.updateDetail.textContent = succeeded
+      ? (job.state === "succeeded_with_warnings"
+        ? job.warning || "The app updated, but one or more integrations need attention."
+        : `Previous version: ${job.fromVersion}`)
+      : job.error || "Run /hub-update to try again.";
+    elements.updateReleaseLink.href = job.releaseUrl || "https://github.com/OAbouHajar/ai-session-hub/releases";
+    return;
+  }
+  elements.updateReleaseLink.classList.remove("hidden");
+  elements.copyUpdateCommand.classList.remove("hidden");
+  elements.dismissUpdate.classList.remove("hidden");
   const dismissedVersion = localStorage.getItem("sessionHub.dismissedUpdate");
   const visible = status.updateAvailable && dismissedVersion !== status.latestVersion;
   elements.updateBanner.classList.toggle("hidden", !visible);
@@ -389,6 +435,9 @@ async function refreshUpdateStatus() {
 }
 
 function dismissUpdate() {
+  if (state.updateJob?.id && ["succeeded", "succeeded_with_warnings", "failed"].includes(state.updateJob.state)) {
+    localStorage.setItem("sessionHub.dismissedUpdateJob", state.updateJob.id);
+  }
   if (state.update?.latestVersion) {
     localStorage.setItem("sessionHub.dismissedUpdate", state.update.latestVersion);
   }

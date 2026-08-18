@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 const dataDir = await mkdtemp(join(tmpdir(), "copilot-session-hub-"));
 const port = 43121;
 const baseUrl = `http://127.0.0.1:${port}`;
+const updateRunner = fileURLToPath(new URL("fixtures/update-runner-stub.mjs", import.meta.url));
 const releaseUrl = `data:application/json,${encodeURIComponent(JSON.stringify({
   tag_name: "v0.4.0",
   html_url: "https://github.com/OAbouHajar/ai-session-hub/releases/tag/v0.4.0",
@@ -21,7 +22,8 @@ const server = spawn(process.execPath, ["server/server.mjs"], {
     COPILOT_SESSION_HUB_DATA: dataDir,
     COPILOT_SESSION_HUB_PORT: String(port),
     COPILOT_SESSION_HUB_IMPORT_HISTORY: "0",
-    COPILOT_SESSION_HUB_RELEASES_URL: releaseUrl
+    COPILOT_SESSION_HUB_RELEASES_URL: releaseUrl,
+    COPILOT_SESSION_HUB_UPDATE_RUNNER: updateRunner
   },
   stdio: "ignore",
   windowsHide: true
@@ -36,13 +38,100 @@ test.after(async () => {
 
 test("reports installed and available stable versions", async () => {
   const health = await fetch(`${baseUrl}/api/health`).then((response) => response.json());
-  assert.equal(health.version, "0.3.2");
+  assert.equal(health.version, "0.3.3");
 
   const update = await fetch(`${baseUrl}/api/update?refresh=1`).then((response) => response.json());
-  assert.equal(update.currentVersion, "0.3.2");
+  assert.equal(update.currentVersion, "0.3.3");
   assert.equal(update.latestVersion, "0.4.0");
   assert.equal(update.updateAvailable, true);
   assert.equal(update.error, "");
+});
+
+test("prepares an update and continues it when the initiating session exits", async () => {
+  const id = "update-session";
+  let response = await fetch(`${baseUrl}/api/hooks/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: id, timestamp: Date.now(), cwd: process.cwd(), source: "new" })
+  });
+  assert.equal(response.status, 200);
+
+  response = await fetch(`${baseUrl}/api/update/install`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: id })
+  });
+  assert.equal(response.status, 202);
+  assert.equal((await response.json()).job.state, "preparing");
+
+  const job = await waitForUpdateState("waiting_for_exit");
+  assert.equal(job.fromVersion, "0.3.3");
+  assert.equal(job.toVersion, "0.4.0");
+  const config = JSON.parse(await readFile(join(dataDir, "update", "job.json"), "utf8"));
+  assert.equal(config.cancelPath, join(dataDir, "update", "cancel"));
+  assert.equal(config.deadline - config.createdAt, 4 * 60 * 60 * 1000);
+
+  response = await fetch(`${baseUrl}/api/hooks/sessionEnd`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: id, timestamp: Date.now() })
+  });
+  assert.equal(response.status, 200);
+  await waitForFile(join(dataDir, "update", "continue"));
+
+  await writeFile(join(dataDir, "update", "status.json"), JSON.stringify({
+    ...job,
+    state: "succeeded",
+    completedAt: Date.now()
+  }));
+  response = await fetch(`${baseUrl}/api/hooks/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: "post-update-session", timestamp: Date.now(), cwd: process.cwd() })
+  });
+  assert.equal(response.status, 200);
+  const startResult = await response.json();
+  assert.equal(startResult.updateJob.state, "succeeded");
+  assert.equal(startResult.updateJob.toVersion, "0.4.0");
+});
+
+test("rejects inactive sessions and accepts cancellation before installation", async () => {
+  const inactiveId = "inactive-update-session";
+  await fetch(`${baseUrl}/api/hooks/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: inactiveId, timestamp: Date.now(), cwd: process.cwd() })
+  });
+  await fetch(`${baseUrl}/api/hooks/sessionEnd`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: inactiveId, timestamp: Date.now() })
+  });
+  let response = await fetch(`${baseUrl}/api/update/install`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: inactiveId })
+  });
+  assert.equal(response.status, 400);
+
+  const activeId = "cancel-update-session";
+  await fetch(`${baseUrl}/api/hooks/sessionStart`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: activeId, timestamp: Date.now(), cwd: process.cwd() })
+  });
+  response = await fetch(`${baseUrl}/api/update/install`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sessionId: activeId })
+  });
+  assert.equal(response.status, 202);
+  await waitForUpdateState("waiting_for_exit");
+
+  response = await fetch(`${baseUrl}/api/update/cancel`, { method: "POST" });
+  assert.equal(response.status, 202);
+  assert.equal((await response.json()).state, "cancelling");
+  await waitForFile(join(dataDir, "update", "cancel"));
 });
 
 test("tracks, checkpoints, and updates a Copilot session", async () => {
@@ -294,4 +383,25 @@ async function waitForHealth() {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error("Test server did not start");
+}
+
+async function waitForUpdateState(expected) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const job = await fetch(`${baseUrl}/api/update/job`).then((response) => response.json());
+    if (job.state === expected) return job;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`Update job did not reach ${expected}`);
+}
+
+async function waitForFile(path) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    try {
+      await access(path);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  throw new Error(`File was not created: ${path}`);
 }

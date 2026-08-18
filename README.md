@@ -123,7 +123,7 @@ Copilot also includes:
 | `/wrap` | Save a continuity checkpoint |
 | `/wrap-with-next` | Save a checkpoint with an explicit todo list |
 | `/unwrap` | Remove a session from Wrapped while preserving its saved data |
-| `/hub-update` | Prepare the latest stable release for safe installation |
+| `/hub-update` | Download, verify, and install the latest stable release automatically |
 | `/kanban` | Build an ordered plan from unfinished work |
 | `/kanban-update` | Reconcile board state with actual progress |
 | `/kanban-process` | Execute the next actionable board task |
@@ -170,7 +170,7 @@ Hooks record lifecycle events and provide the assistant with the local checkpoin
 
 When a stable release is available, Session Hub shows a dashboard banner and adds one short notice after a wrap. Update checks use the GitHub Releases API at most once every 24 hours and do not include session data.
 
-Copilot users can run `/hub-update` to stage the exact release and receive a safe installer command. Exit active AI CLI sessions before running that command so loaded provider integrations can be refreshed.
+Copilot users can run `/hub-update` for a one-command upgrade. Session Hub downloads and verifies the exact stable release in the background. Exit active AI CLI sessions when prompted; installation, dashboard restart, health verification, and cleanup then finish automatically. The next session reports whether the update succeeded.
 
 To check manually, or when upgrading an older installation that predates update notifications, pull the latest source and rerun the installer:
 

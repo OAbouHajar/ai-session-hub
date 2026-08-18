@@ -1,7 +1,7 @@
 {
   "name": "copilot-session-hub",
   "description": "Persistent session continuity dashboard with wrap checkpoints for AI coding CLIs.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "author": {
     "name": "AI Session Hub"
   },

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,7 @@ const payload = normalizePayload(rawPayload);
 const url = process.env.COPILOT_SESSION_HUB_URL || "http://127.0.0.1:43120";
 
 let response = await postEvent();
-if (!response) {
+if (!response && !updateIsInstalling()) {
   startServer();
   await delay(700);
   response = await postEvent();
@@ -30,13 +30,23 @@ if (eventName === "sessionStart") {
   const body = await response.json();
   const updateNotice = body.update?.updateAvailable
     ? ` AI Session Hub ${body.update.latestVersion} is available (installed: ${body.update.currentVersion}). ` +
-      `Mention this once at a natural stopping point. Copilot users can run /hub-update; other users can ask their AI to update AI Session Hub.`
+      `Mention this once at a natural stopping point. Copilot users can run /hub-update. ` +
+      `For a natural-language update request, confirm with the user, then POST ${url}/api/update/install with ` +
+      `{"sessionId":${JSON.stringify(body.sessionId)}} and poll ${url}/api/update/job until waiting_for_exit or failed. ` +
+      `Never run or show a separate installer command.`
     : "";
+  const updateResult = ["succeeded", "succeeded_with_warnings"].includes(body.updateJob?.state)
+    ? ` AI Session Hub updated successfully from ${body.updateJob.fromVersion} to ${body.updateJob.toVersion}. ` +
+      `${body.updateJob.state === "succeeded_with_warnings" ? `Some integrations need attention: ${body.updateJob.error} ` : ""}Tell the user once.`
+    : body.updateJob?.state === "failed"
+      ? ` The scheduled AI Session Hub update failed: ${body.updateJob.error} Tell the user once and direct them to the dashboard.`
+      : "";
   const context =
     `AI Session Hub is tracking this ${providerName(provider)} session. Session ID: ${body.sessionId}. ` +
     `Checkpoint endpoint: ${url}/api/sessions/${encodeURIComponent(body.sessionId)}/checkpoint. ` +
     `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.` +
-    updateNotice;
+    updateNotice +
+    updateResult;
   process.stdout.write(JSON.stringify(sessionStartOutput(context)));
 } else {
   process.stdout.write("{}");
@@ -67,6 +77,15 @@ function startServer() {
   child.unref();
 }
 
+function updateIsInstalling() {
+  try {
+    const statusPath = join(defaultDataDir(), "update", "status.json");
+    return JSON.parse(readFileSync(statusPath, "utf8")).state === "installing";
+  } catch {
+    return false;
+  }
+}
+
 async function queueEvent() {
   const dataDir = defaultDataDir();
   const queuePath = join(dataDir, "pending-events.jsonl");
@@ -75,6 +94,7 @@ async function queueEvent() {
 }
 
 function defaultDataDir() {
+  if (process.env.COPILOT_SESSION_HUB_DATA) return process.env.COPILOT_SESSION_HUB_DATA;
   if (process.env.LOCALAPPDATA) return join(process.env.LOCALAPPDATA, "CopilotSessionHub");
   if (platform() === "darwin") {
     const current = join(homedir(), "Library", "Application Support", "CopilotSessionHub");

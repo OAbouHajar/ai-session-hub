@@ -1,10 +1,11 @@
 import http from "node:http";
-import { readFile, mkdir, access, rename, unlink } from "node:fs/promises";
-import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { readFile, writeFile, mkdir, access, rename, unlink } from "node:fs/promises";
+import { createReadStream, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { createUpdateChecker } from "./update-checker.mjs";
 import { inspectProviderHooks } from "../scripts/provider-hooks.mjs";
@@ -21,6 +22,11 @@ const antiFramingHeaders = {
 };
 const dataDir = process.env.COPILOT_SESSION_HUB_DATA || defaultDataDir();
 const historyPath = process.env.COPILOT_SESSION_HUB_HISTORY_DB || join(homedir(), ".copilot", "session-store.db");
+const updateJobDir = join(dataDir, "update");
+const updateJobConfigPath = join(updateJobDir, "job.json");
+const updateJobStatusPath = join(updateJobDir, "status.json");
+const updateJobSignalPath = join(updateJobDir, "continue");
+const updateJobCancelPath = join(updateJobDir, "cancel");
 await mkdir(dataDir, { recursive: true });
 
 const db = new DatabaseSync(join(dataDir, "sessions.db"));
@@ -120,6 +126,12 @@ if (aicUnitVersion !== "2") {
   db.prepare("INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('aic_unit_version', '2')").run();
 }
 
+function writeJsonAtomicSync(path, value) {
+  const temporaryPath = `${path}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  renameSync(temporaryPath, path);
+}
+
 const updateChecker = createUpdateChecker({
   currentVersion: appVersion,
   releaseUrl: process.env.COPILOT_SESSION_HUB_RELEASES_URL ||
@@ -131,6 +143,7 @@ const updateChecker = createUpdateChecker({
   ).run(JSON.stringify(status))
 });
 let lastUpdateError = "";
+let updateInstallScheduling = false;
 const clients = new Set();
 await replayPendingEvents();
 const initialImport = process.env.COPILOT_SESSION_HUB_IMPORT_HISTORY === "0"
@@ -198,6 +211,181 @@ function reportUpdateError(status) {
   }
 }
 
+async function scheduleUpdateInstall(data, response) {
+  if (updateInstallScheduling) {
+    return json(response, 409, { error: "An update is already being prepared." });
+  }
+  updateInstallScheduling = true;
+  try {
+    return await prepareUpdateInstall(data, response);
+  } finally {
+    updateInstallScheduling = false;
+  }
+}
+
+async function prepareUpdateInstall(data, response) {
+  const existingJob = readUpdateJob();
+  if (["preparing", "waiting_for_exit", "installing"].includes(existingJob.state)) {
+    return json(response, 409, { error: "An update is already in progress.", job: existingJob });
+  }
+
+  const sessionId = cleanText(data.sessionId, 300);
+  const session = sessionId
+    ? db.prepare("SELECT id, status, ended_at FROM sessions WHERE id = ?").get(sessionId)
+    : null;
+  if (!session || session.status !== "active" || session.ended_at) {
+    return json(response, 400, { error: "An active tracked session is required to schedule the update." });
+  }
+
+  const update = await updateChecker.check({ force: true });
+  reportUpdateError(update);
+  if (!update.enabled) return json(response, 409, { error: "Automatic update checks are disabled." });
+  if (update.error) return json(response, 502, { error: update.error });
+  if (!update.updateAvailable) {
+    return json(response, 409, { error: `AI Session Hub ${appVersion} is already up to date.` });
+  }
+  if (!/^\d+\.\d+\.\d+$/.test(update.latestVersion || "")) {
+    return json(response, 502, { error: "The release version is invalid." });
+  }
+
+  await mkdir(updateJobDir, { recursive: true });
+  await unlink(updateJobSignalPath).catch(() => {});
+  await unlink(updateJobCancelPath).catch(() => {});
+  const createdAt = Date.now();
+  const job = {
+    id: randomUUID(),
+    state: "preparing",
+    fromVersion: appVersion,
+    toVersion: update.latestVersion,
+    releaseUrl: update.releaseUrl,
+    sessionId,
+    createdAt,
+    updatedAt: createdAt,
+    deadline: createdAt + 4 * 60 * 60 * 1000
+  };
+  const config = {
+    ...job,
+    dataDir,
+    statusPath: updateJobStatusPath,
+    signalPath: updateJobSignalPath,
+    cancelPath: updateJobCancelPath,
+    stagingPath: join(updateJobDir, `v${update.latestVersion}`),
+    logPath: join(updateJobDir, "update.log"),
+    dashboardUrl: baseUrl
+  };
+  await writeJsonAtomic(updateJobConfigPath, config);
+  await writeJsonAtomic(updateJobStatusPath, job);
+  const currentSession = db.prepare("SELECT status, ended_at FROM sessions WHERE id = ?").get(sessionId);
+  if (currentSession?.status !== "active" || currentSession?.ended_at) {
+    await writeFile(updateJobSignalPath, `${Date.now()}\n`, "utf8");
+  }
+
+  const runner = process.env.COPILOT_SESSION_HUB_UPDATE_RUNNER ||
+    join(root, "scripts", "update-runner.mjs");
+  launchUpdateRunner(runner);
+  json(response, 202, { ok: true, job });
+}
+
+async function cancelUpdateInstall(response) {
+  const job = readUpdateJob();
+  if (!["preparing", "waiting_for_exit"].includes(job.state)) {
+    return json(response, 409, { error: "There is no cancellable update." });
+  }
+  await writeFile(updateJobCancelPath, `${Date.now()}\n`, "utf8");
+  json(response, 202, { ok: true, state: "cancelling" });
+}
+
+async function writeJsonAtomic(path, value) {
+  const temporaryPath = `${path}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await rename(temporaryPath, path);
+}
+
+function launchUpdateRunner(runner = process.env.COPILOT_SESSION_HUB_UPDATE_RUNNER ||
+  join(root, "scripts", "update-runner.mjs")) {
+  const child = spawn(process.execPath, [runner, updateJobConfigPath], {
+    cwd: root,
+    detached: true,
+    windowsHide: true,
+    stdio: "ignore"
+  });
+  child.on("error", (error) => {
+    console.error(`Could not launch the update runner: ${error.message}`);
+    const job = readUpdateJob();
+    try {
+      writeJsonAtomicSync(updateJobStatusPath, {
+        ...job,
+        state: "failed",
+        error: "The background updater could not start.",
+        completedAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    } catch (writeError) {
+      console.error(`Could not record the update failure: ${writeError.message}`);
+    }
+  });
+  child.unref();
+}
+
+function resumePendingUpdate() {
+  const job = readUpdateJob();
+  if (
+    !["preparing", "waiting_for_exit", "installing"].includes(job.state) ||
+    (job.runnerPid && processIsRunning(job.runnerPid)) ||
+    !existsSync(updateJobConfigPath)
+  ) return;
+  launchUpdateRunner();
+}
+
+function processIsRunning(pid) {
+  try {
+    process.kill(Number(pid), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readUpdateJob() {
+  try {
+    const value = JSON.parse(readFileSync(updateJobStatusPath, "utf8"));
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function signalUpdateInstall(sessionId) {
+  const job = readUpdateJob();
+  if (
+    job.sessionId !== sessionId ||
+    !["preparing", "waiting_for_exit"].includes(job.state)
+  ) return;
+  void writeFile(updateJobSignalPath, `${Date.now()}\n`, "utf8").catch((error) => {
+    console.error(`Could not continue the scheduled update: ${error.message}`);
+  });
+}
+
+function takeUpdateCompletionNotice() {
+  const job = readUpdateJob();
+  if (!["succeeded", "succeeded_with_warnings", "failed"].includes(job.state) || job.notifiedAt) return null;
+  const notice = {
+    state: job.state,
+    fromVersion: job.fromVersion,
+    toVersion: job.toVersion,
+    error: job.error || job.warning || ""
+  };
+  try {
+    writeJsonAtomicSync(updateJobStatusPath, {
+      ...job,
+      notifiedAt: Date.now()
+    });
+  } catch (error) {
+    console.error(`Could not acknowledge the update result: ${error.message}`);
+  }
+  return notice;
+}
+
 const server = http.createServer(async (request, response) => {
   try {
     if (!isAllowedRequest(request)) return json(response, 403, { error: "Request origin is not allowed" });
@@ -214,6 +402,15 @@ const server = http.createServer(async (request, response) => {
       json(response, 200, status);
       scheduleUpdateCheck();
       return;
+    }
+    if (url.pathname === "/api/update/job" && request.method === "GET") {
+      return json(response, 200, readUpdateJob());
+    }
+    if (url.pathname === "/api/update/install" && request.method === "POST") {
+      return await scheduleUpdateInstall(await body(request), response);
+    }
+    if (url.pathname === "/api/update/cancel" && request.method === "POST") {
+      return await cancelUpdateInstall(response);
     }
     if (url.pathname === "/api/events" && request.method === "GET") return openEventStream(request, response);
     if (url.pathname === "/api/sessions" && request.method === "GET") return listSessions(url, response);
@@ -265,6 +462,7 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`AI Session Hub: ${baseUrl}`);
+  resumePendingUpdate();
 });
 
 function listSessions(url, response) {
@@ -472,9 +670,16 @@ function handleHook(provider, eventName, payload, response) {
 
   addEvent(id, eventName, eventDetail(eventName, payload), timestamp);
   if (provider === "copilot" && ["agentStop", "preCompact", "sessionEnd"].includes(eventName)) syncSessionFiles(id);
+  if (eventName === "sessionEnd") signalUpdateInstall(id);
   broadcast("sessions-changed", { id, eventName });
   const update = updateChecker.cachedStatus();
-  json(response, 200, { ok: true, sessionId: id, update: update.updateAvailable ? update : null });
+  const updateJob = eventName === "sessionStart" ? takeUpdateCompletionNotice() : null;
+  json(response, 200, {
+    ok: true,
+    sessionId: id,
+    update: update.updateAvailable ? update : null,
+    updateJob
+  });
   scheduleUpdateCheck();
 }
 

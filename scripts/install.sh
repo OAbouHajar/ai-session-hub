@@ -120,7 +120,15 @@ node "$INSTALL_ROOT/scripts/provider-hooks.mjs" install "$INSTALL_ROOT"
 
 if command -v copilot >/dev/null 2>&1; then
   copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
-  if ! INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
+  PLUGIN_INSTALLED=false
+  for _ in {1..5}; do
+    if INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
+      PLUGIN_INSTALLED=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$PLUGIN_INSTALLED" != true ]]; then
     start_service
     cat >&2 <<EOF
 AI Session Hub application files were updated, but the Copilot plugin could not be refreshed.

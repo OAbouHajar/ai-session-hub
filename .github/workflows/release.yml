@@ -1,0 +1,37 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.5.0"
+      - name: Verify release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const packageVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
+            const pluginVersion = JSON.parse(readFileSync("plugin.json", "utf8")).version;
+            const tagVersion = process.env.RELEASE_TAG.replace(/^v/, "");
+            if (packageVersion !== tagVersion || pluginVersion !== tagVersion) {
+              throw new Error(`Version mismatch: tag=${tagVersion}, package=${packageVersion}, plugin=${pluginVersion}`);
+            }
+          '
+      - run: npm test
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "AI Session Hub $RELEASE_TAG"

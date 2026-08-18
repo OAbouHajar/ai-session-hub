@@ -102,6 +102,19 @@
         </div>
       </header>
 
+      <aside id="updateBanner" class="update-banner hidden" aria-live="polite">
+        <span class="update-icon" aria-hidden="true">↑</span>
+        <div>
+          <strong id="updateTitle">AI Session Hub update available</strong>
+          <span id="updateDetail">A newer stable release is ready.</span>
+        </div>
+        <a id="updateReleaseLink" href="#" target="_blank" rel="noopener noreferrer">Release notes</a>
+        <button id="copyUpdateCommand" class="button quiet">Copy /hub-update</button>
+        <button id="dismissUpdate" class="icon-button" aria-label="Dismiss update notification">
+          <svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
+        </button>
+      </aside>
+
       <section id="emptyState" class="empty-state hidden">
         <div class="empty-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-5l-2 2-2-2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10V7H7v2Zm0 4h7v-2H7v2Z"/></svg>

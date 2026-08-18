@@ -94,6 +94,8 @@ cat > "$PLIST_PATH" <<EOF
   <dict>
     <key>PATH</key>
     <string>$(xml_escape "$PATH")</string>
+    <key>COPILOT_SESSION_HUB_UPDATE_CHECK</key>
+    <string>$(xml_escape "${COPILOT_SESSION_HUB_UPDATE_CHECK:-1}")</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

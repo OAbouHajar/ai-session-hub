@@ -9,13 +9,19 @@ import { fileURLToPath } from "node:url";
 const dataDir = await mkdtemp(join(tmpdir(), "copilot-session-hub-"));
 const port = 43121;
 const baseUrl = `http://127.0.0.1:${port}`;
+const releaseUrl = `data:application/json,${encodeURIComponent(JSON.stringify({
+  tag_name: "v0.4.0",
+  html_url: "https://github.com/OAbouHajar/ai-session-hub/releases/tag/v0.4.0",
+  published_at: "2026-08-18T08:00:00Z"
+}))}`;
 const server = spawn(process.execPath, ["server/server.mjs"], {
   cwd: fileURLToPath(new URL("..", import.meta.url)),
   env: {
     ...process.env,
     COPILOT_SESSION_HUB_DATA: dataDir,
     COPILOT_SESSION_HUB_PORT: String(port),
-    COPILOT_SESSION_HUB_IMPORT_HISTORY: "0"
+    COPILOT_SESSION_HUB_IMPORT_HISTORY: "0",
+    COPILOT_SESSION_HUB_RELEASES_URL: releaseUrl
   },
   stdio: "ignore",
   windowsHide: true
@@ -28,6 +34,17 @@ test.after(async () => {
   server.kill();
 });
 
+test("reports installed and available stable versions", async () => {
+  const health = await fetch(`${baseUrl}/api/health`).then((response) => response.json());
+  assert.equal(health.version, "0.3.0");
+
+  const update = await fetch(`${baseUrl}/api/update?refresh=1`).then((response) => response.json());
+  assert.equal(update.currentVersion, "0.3.0");
+  assert.equal(update.latestVersion, "0.4.0");
+  assert.equal(update.updateAvailable, true);
+  assert.equal(update.error, "");
+});
+
 test("tracks, checkpoints, and updates a Copilot session", async () => {
   const id = "test-session-1";
   let response = await fetch(`${baseUrl}/api/hooks/sessionStart`, {
@@ -36,6 +53,7 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
     body: JSON.stringify({ sessionId: id, timestamp: Date.now(), cwd: process.cwd(), source: "new" })
   });
   assert.equal(response.status, 200);
+  assert.equal((await response.json()).update.updateAvailable, true);
 
   const metricsPath = join(dataDir, "metrics-events.jsonl");
   await writeFile(metricsPath, `${JSON.stringify({
@@ -63,6 +81,7 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
     })
   });
   assert.equal(response.status, 200);
+  assert.equal((await response.json()).update.updateAvailable, true);
 
   const session = await fetch(`${baseUrl}/api/sessions/${id}`).then((result) => result.json());
   assert.equal(session.title, "Build session dashboard");

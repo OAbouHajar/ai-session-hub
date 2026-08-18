@@ -23,7 +23,7 @@ Wrap the current session into AI Session Hub and preserve the user's intended ne
    - `nextAction` to `No pending action — this session is complete.`
    - `tasks` to an empty array.
 5. Find the Session Hub checkpoint endpoint from the session-start context.
-6. POST exactly this JSON shape using PowerShell `Invoke-RestMethod`:
+6. POST exactly this JSON shape using an available HTTP client (`Invoke-RestMethod` on Windows or `curl` on macOS):
 
 ```json
 {
@@ -41,6 +41,12 @@ Wrap the current session into AI Session Hub and preserve the user's intended ne
 ```
 
 Do not include secrets, raw tool output, timestamps, session IDs, or alternate property names in the body.
+
+If the successful response has `update.updateAvailable` set to true, also show:
+
+```text
+AI Session Hub <latestVersion> is available (installed: <currentVersion>). Run /hub-update to prepare it safely.
+```
 
 After a successful save, show:
 

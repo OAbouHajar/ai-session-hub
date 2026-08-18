@@ -7,6 +7,7 @@ $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 $InstallRoot = Join-Path $env:LOCALAPPDATA "Programs\CopilotSessionHub"
 $StartupFolder = [Environment]::GetFolderPath("Startup")
 $StartupScript = Join-Path $StartupFolder "Copilot Session Hub.cmd"
+$UpdateCheck = if ($env:COPILOT_SESSION_HUB_UPDATE_CHECK -eq "0") { "0" } else { "1" }
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     throw "Node.js 22.5 or newer is required."
@@ -51,7 +52,7 @@ if ($ResolvedProjectRoot -ne $ResolvedInstallRoot) {
 }
 
 $ServerPath = Join-Path $InstallRoot "server\server.mjs"
-$StartupContent = "@echo off`r`nstart `"`" /min node `"$ServerPath`"`r`n"
+$StartupContent = "@echo off`r`nset COPILOT_SESSION_HUB_UPDATE_CHECK=$UpdateCheck`r`nstart `"`" /min node `"$ServerPath`"`r`n"
 Set-Content -LiteralPath $StartupScript -Value $StartupContent -Encoding ASCII
 
 & node (Join-Path $InstallRoot "scripts\provider-hooks.mjs") install $InstallRoot

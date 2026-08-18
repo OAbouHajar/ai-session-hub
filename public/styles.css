@@ -206,6 +206,31 @@ kbd {
 .topbar-context span { margin-top: 0.2rem; color: var(--cp-text-muted); font-size: 0.72rem; }
 .top-actions { position: relative; display: flex; gap: 0.5rem; }
 
+.update-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.8rem;
+  color: var(--cp-text);
+  background: var(--cp-accent-soft);
+  border: 1px solid color-mix(in oklch, var(--cp-accent) 45%, var(--cp-border));
+  border-radius: var(--radius-md);
+}
+.update-icon {
+  display: grid; width: 1.7rem; height: 1.7rem; place-items: center;
+  color: var(--cp-accent-fg); background: var(--cp-accent); border-radius: 50%;
+  font-weight: 800;
+}
+.update-banner div { min-width: 0; }
+.update-banner strong, .update-banner span { display: block; }
+.update-banner strong { font-size: 0.78rem; }
+.update-banner div span { margin-top: 0.1rem; color: var(--cp-text-muted); font-size: 0.68rem; }
+.update-banner a { color: var(--cp-link); font-size: 0.72rem; font-weight: 650; }
+.update-banner .button { min-height: 1.9rem; padding: 0 0.65rem; font-size: 0.7rem; }
+.update-banner .icon-button { width: 1.9rem; height: 1.9rem; }
+
 .icon-button {
   width: 2.35rem; height: 2.35rem; display: inline-grid; place-items: center; padding: 0;
   color: var(--cp-text-muted); background: transparent; border: 0; border-radius: var(--radius-sm); cursor: pointer;
@@ -540,6 +565,8 @@ button.context-link { cursor: pointer; }
   .main { padding-inline: 1rem; }
   .topbar { min-height: 3.5rem; }
   .topbar-context span, .button.quiet { display: none; }
+  .update-banner { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .update-banner a, .update-banner .button { display: none; }
   .editable-title-row h1 { font-size: 1.45rem; }
   .session-summary { font-size: 0.82rem; }
   .more-context-heading small { display: none; }

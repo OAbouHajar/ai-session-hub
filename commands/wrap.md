@@ -12,7 +12,7 @@ Wrap the current session into AI Session Hub.
    - Up to six additional next actions, but ONLY for explicit todo/checklist items or clearly unfinished requested work.
    - Any unresolved questions, blockers, or important decisions.
 2. Find the Session Hub session ID and checkpoint endpoint in the context added when this session started.
-3. POST the checkpoint as JSON using PowerShell `Invoke-RestMethod`. Use this shape:
+3. POST the checkpoint as JSON using an available HTTP client (`Invoke-RestMethod` on Windows or `curl` on macOS). Use this shape:
 
 ```json
 {
@@ -35,4 +35,5 @@ Wrap the current session into AI Session Hub.
    - `lastAction` must be the most recent meaningful completed and verified outcome, not merely the latest command.
 6. Do not include secrets, credentials, access tokens, or raw tool output.
 7. If the POST fails, state the error clearly and do not claim the checkpoint was saved.
-8. After a successful save, show the recommended next action and the dashboard URL. Do not exit Copilot automatically.
+8. Inspect the successful checkpoint response. If `update.updateAvailable` is true, show one short notice after the checkpoint result: `AI Session Hub {latestVersion} is available (installed: {currentVersion}). Run /hub-update to prepare it safely.`
+9. After a successful save, show the recommended next action and the dashboard URL. Do not exit Copilot automatically.

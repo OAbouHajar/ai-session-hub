@@ -28,10 +28,15 @@ if (!response) {
 
 if (eventName === "sessionStart") {
   const body = await response.json();
+  const updateNotice = body.update?.updateAvailable
+    ? ` AI Session Hub ${body.update.latestVersion} is available (installed: ${body.update.currentVersion}). ` +
+      `Mention this once at a natural stopping point. Copilot users can run /hub-update; other users can ask their AI to update AI Session Hub.`
+    : "";
   const context =
     `AI Session Hub is tracking this ${providerName(provider)} session. Session ID: ${body.sessionId}. ` +
     `Checkpoint endpoint: ${url}/api/sessions/${encodeURIComponent(body.sessionId)}/checkpoint. ` +
-    `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.`;
+    `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.` +
+    updateNotice;
   process.stdout.write(JSON.stringify(sessionStartOutput(context)));
 } else {
   process.stdout.write("{}");

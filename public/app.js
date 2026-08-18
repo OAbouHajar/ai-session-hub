@@ -8,7 +8,8 @@ const state = {
   view: localStorage.getItem("sessionHub.view") || "sessions",
   projects: [],
   selectedProjectId: localStorage.getItem("sessionHub.projectId"),
-  commandIndex: 0
+  commandIndex: 0,
+  update: null
 };
 let modalReturnFocus = null;
 
@@ -22,6 +23,11 @@ const sessionHubCommands = [
     command: "/wrap-with-next",
     title: "Wrap with a todo list",
     description: "Save the session plus an explicit list of what you want to do next time."
+  },
+  {
+    command: "/hub-update",
+    title: "Prepare a safe Session Hub update",
+    description: "Stage the latest stable release and show the installer command to run after exiting active AI CLIs."
   },
   {
     command: "/kanban",
@@ -76,7 +82,7 @@ const elements = Object.fromEntries(
   [...document.querySelectorAll("[id]")].map((element) => [element.id, element])
 );
 
-await refresh();
+await Promise.all([refresh(), refreshUpdateStatus()]);
 connectEvents();
 bindEvents();
 applyView();
@@ -118,6 +124,8 @@ function bindEvents() {
     else await refresh({ preserveSelection: false });
   }, 180));
   elements.refreshButton.addEventListener("click", () => refresh());
+  elements.copyUpdateCommand.addEventListener("click", () => copyCommand("/hub-update"));
+  elements.dismissUpdate.addEventListener("click", dismissUpdate);
   elements.resumeMainButton.addEventListener("click", resumeSelected);
   elements.openCopilotButton.addEventListener("click", resumeSelected);
   elements.repoChip.addEventListener("click", () => action("folder"));
@@ -303,6 +311,26 @@ async function copyCommand(command) {
 function connectEvents() {
   const stream = new EventSource("/api/events");
   stream.addEventListener("sessions-changed", () => state.view === "board" ? refreshBoard() : refresh());
+  stream.addEventListener("update-changed", refreshUpdateStatus);
+}
+
+async function refreshUpdateStatus() {
+  const status = await api("/api/update");
+  state.update = status;
+  const dismissedVersion = localStorage.getItem("sessionHub.dismissedUpdate");
+  const visible = status.updateAvailable && dismissedVersion !== status.latestVersion;
+  elements.updateBanner.classList.toggle("hidden", !visible);
+  if (!visible) return;
+  elements.updateTitle.textContent = `AI Session Hub ${status.latestVersion} is available`;
+  elements.updateDetail.textContent = `Installed version: ${status.currentVersion}`;
+  elements.updateReleaseLink.href = status.releaseUrl || "https://github.com/OAbouHajar/ai-session-hub/releases";
+}
+
+function dismissUpdate() {
+  if (state.update?.latestVersion) {
+    localStorage.setItem("sessionHub.dismissedUpdate", state.update.latestVersion);
+  }
+  elements.updateBanner.classList.add("hidden");
 }
 
 function renderSessionList() {

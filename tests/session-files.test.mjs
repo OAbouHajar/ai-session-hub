@@ -421,10 +421,13 @@ test("returns an actionable conflict when the resume workspace is missing", asyn
 });
 
 test("static UI retains recall-first and secondary-project contracts", async () => {
-  const [html, app, wrapWithNext, installPrompt, logoMark] = await Promise.all([
+  const [html, app, hookClient, wrap, wrapWithNext, hubUpdate, installPrompt, logoMark] = await Promise.all([
     readFile(join(root, "public", "index.html"), "utf8"),
     readFile(join(root, "public", "app.js"), "utf8"),
+    readFile(join(root, "scripts", "hook-client.mjs"), "utf8"),
+    readFile(join(root, "commands", "wrap.md"), "utf8"),
     readFile(join(root, "commands", "wrap-with-next.md"), "utf8"),
+    readFile(join(root, "commands", "hub-update.md"), "utf8"),
     readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8"),
     readFile(join(root, "public", "logo-mark.png"))
   ]);
@@ -441,14 +444,23 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(html, /Resume this session/);
   assert.match(html, /id="sessionIdChip"/);
   assert.match(html, /id="providerBadge"/);
+  assert.match(html, /id="updateBanner"/);
   assert.match(app, /No sessions match that search/);
   assert.match(app, /resumeCommand/);
   assert.match(app, /providerName/);
   assert.match(app, /function openBoardTaskForm/);
   assert.match(app, /body: \{ text, status \}/);
   assert.match(app, /\/wrap-with-next/);
+  assert.match(app, /\/hub-update/);
+  assert.match(app, /function refreshUpdateStatus/);
+  assert.match(hookClient, /body\.update\?\.updateAvailable/);
+  assert.match(hookClient, /Copilot users can run \/hub-update/);
+  assert.match(wrap, /update\.updateAvailable/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);
+  assert.match(wrapWithNext, /update\.updateAvailable/);
+  assert.match(hubUpdate, /exact `v\{latestVersion\}` tag/);
+  assert.match(hubUpdate, /Do not run the installer inside the active AI CLI session/);
   assert.match(installPrompt, /Install AI Session Hub/);
   assert.match(installPrompt, /do not delete or overwrite/i);
   assert.match(installPrompt, /active Copilot session is locking/i);

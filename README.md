@@ -121,6 +121,7 @@ Copilot also includes:
 |---|---|
 | `/wrap` | Save a continuity checkpoint |
 | `/wrap-with-next` | Save a checkpoint with an explicit todo list |
+| `/hub-update` | Prepare the latest stable release for safe installation |
 | `/kanban` | Build an ordered plan from unfinished work |
 | `/kanban-update` | Reconcile board state with actual progress |
 | `/kanban-process` | Execute the next actionable board task |
@@ -165,7 +166,11 @@ Hooks record lifecycle events and provide the assistant with the local checkpoin
 
 ### Upgrade
 
-Pull the latest version and rerun the installer:
+When a stable release is available, Session Hub shows a dashboard banner and adds one short notice after a wrap. Update checks use the GitHub Releases API at most once every 24 hours and do not include session data.
+
+Copilot users can run `/hub-update` to stage the exact release and receive a safe installer command. Exit active AI CLI sessions before running that command so loaded provider integrations can be refreshed.
+
+To check manually, or when upgrading an older installation that predates update notifications, pull the latest source and rerun the installer:
 
 ```bash
 git pull
@@ -176,6 +181,8 @@ git pull
 git pull
 pwsh -File .\scripts\install.ps1 -NoOpen
 ```
+
+Set `COPILOT_SESSION_HUB_UPDATE_CHECK=0` when running the installer to disable automatic release checks. The choice is preserved by the installed background service.
 
 ### Uninstall
 
@@ -197,6 +204,8 @@ npm test
 ```
 
 The project has no runtime npm dependencies. It uses Node.js built-ins including `node:http`, `node:sqlite`, and the native test runner.
+
+Stable updates are published through semantic tags such as `v0.3.0`. Before pushing a release tag, set the same version in `package.json` and `plugin.json`. The release workflow verifies both versions, runs the test suite, and creates the GitHub Release used by installed update checkers.
 
 ## License
 

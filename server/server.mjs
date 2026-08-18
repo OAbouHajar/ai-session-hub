@@ -6,9 +6,12 @@ import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
+import { createUpdateChecker } from "./update-checker.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = join(root, "public");
+const packageMetadata = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const appVersion = packageMetadata.version;
 const port = Number(process.env.COPILOT_SESSION_HUB_PORT) || 43120;
 const baseUrl = `http://127.0.0.1:${port}`;
 const antiFramingHeaders = {
@@ -116,6 +119,17 @@ if (aicUnitVersion !== "2") {
   db.prepare("INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('aic_unit_version', '2')").run();
 }
 
+const updateChecker = createUpdateChecker({
+  currentVersion: appVersion,
+  releaseUrl: process.env.COPILOT_SESSION_HUB_RELEASES_URL ||
+    "https://api.github.com/repos/OAbouHajar/ai-session-hub/releases/latest",
+  enabled: process.env.COPILOT_SESSION_HUB_UPDATE_CHECK !== "0",
+  readCache: () => readUpdateCache(),
+  writeCache: (status) => db.prepare(
+    "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('update_status', ?)"
+  ).run(JSON.stringify(status))
+});
+let lastUpdateError = "";
 const clients = new Set();
 await replayPendingEvents();
 const initialImport = process.env.COPILOT_SESSION_HUB_IMPORT_HISTORY === "0"
@@ -143,11 +157,62 @@ function basenamePath(value) {
   return slashPath(value).split("/").filter(Boolean).at(-1) || "";
 }
 
+function readUpdateCache() {
+  const value = db.prepare("SELECT value FROM app_metadata WHERE key = 'update_status'").get()?.value;
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.error(`Could not read the cached update status: ${error.message}`);
+    db.prepare("DELETE FROM app_metadata WHERE key = 'update_status'").run();
+    return null;
+  }
+}
+
+function scheduleUpdateCheck() {
+  const before = updateChecker.cachedStatus();
+  void updateChecker.check()
+    .then((status) => {
+      reportUpdateError(status);
+      if (
+        status.updateAvailable !== before.updateAvailable ||
+        status.latestVersion !== before.latestVersion
+      ) {
+        broadcast("update-changed", status);
+      }
+    })
+    .catch((error) => {
+      console.error(`Unexpected update check failure: ${error.message}`);
+    });
+}
+
+function reportUpdateError(status) {
+  if (!status.error) {
+    lastUpdateError = "";
+    return;
+  }
+  if (status.error !== lastUpdateError) {
+    console.error(status.error);
+    lastUpdateError = status.error;
+  }
+}
+
 const server = http.createServer(async (request, response) => {
   try {
     if (!isAllowedRequest(request)) return json(response, 403, { error: "Request origin is not allowed" });
     const url = new URL(request.url, baseUrl);
-    if (url.pathname === "/api/health") return json(response, 200, { ok: true, version: "0.2.0" });
+    if (url.pathname === "/api/health") return json(response, 200, { ok: true, version: appVersion });
+    if (url.pathname === "/api/update" && request.method === "GET") {
+      if (url.searchParams.get("refresh") === "1") {
+        const status = await updateChecker.check({ force: true });
+        reportUpdateError(status);
+        return json(response, 200, status);
+      }
+      const status = updateChecker.cachedStatus();
+      json(response, 200, status);
+      scheduleUpdateCheck();
+      return;
+    }
     if (url.pathname === "/api/events" && request.method === "GET") return openEventStream(request, response);
     if (url.pathname === "/api/sessions" && request.method === "GET") return listSessions(url, response);
     if (url.pathname === "/api/stats" && request.method === "GET") return getStats(response);
@@ -372,7 +437,9 @@ function handleHook(provider, eventName, payload, response) {
   addEvent(id, eventName, eventDetail(eventName, payload), timestamp);
   if (provider === "copilot" && ["agentStop", "preCompact", "sessionEnd"].includes(eventName)) syncSessionFiles(id);
   broadcast("sessions-changed", { id, eventName });
-  json(response, 200, { ok: true, sessionId: id });
+  const update = updateChecker.cachedStatus();
+  json(response, 200, { ok: true, sessionId: id, update: update.updateAvailable ? update : null });
+  scheduleUpdateCheck();
 }
 
 function checkpoint(id, data, response) {
@@ -429,7 +496,9 @@ function checkpoint(id, data, response) {
     throw error;
   }
   broadcast("sessions-changed", { id, eventName: "checkpoint" });
-  json(response, 200, { ok: true, dashboardUrl: baseUrl, sessionId: id });
+  const update = updateChecker.cachedStatus();
+  json(response, 200, { ok: true, dashboardUrl: baseUrl, sessionId: id, update });
+  scheduleUpdateCheck();
 }
 
 function updateSession(id, data, response) {

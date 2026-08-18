@@ -10,12 +10,12 @@ $StartupScript = Join-Path $StartupFolder "Copilot Session Hub.cmd"
 $UpdateCheck = if ($env:COPILOT_SESSION_HUB_UPDATE_CHECK -eq "0") { "0" } else { "1" }
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-    throw "Node.js 22.5 or newer is required."
+    throw "Node.js 22.13 or newer is required."
 }
 
 $NodeVersion = [version]((node --version).TrimStart("v"))
-if ($NodeVersion -lt [version]"22.5.0") {
-    throw "Node.js 22.5 or newer is required. Found $NodeVersion."
+if ($NodeVersion -lt [version]"22.13.0") {
+    throw "Node.js 22.13 or newer is required. Found $NodeVersion."
 }
 
 $ProviderCommands = @("copilot", "claude", "codex", "gemini")

@@ -3,7 +3,7 @@
 ## Requirements
 
 - Google Gemini CLI, signed in
-- Node.js 22.5 or newer
+- Node.js 22.13 or newer
 - Git
 - macOS or Windows
 - PowerShell 7 on Windows

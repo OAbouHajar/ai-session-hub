@@ -36,10 +36,10 @@ test.after(async () => {
 
 test("reports installed and available stable versions", async () => {
   const health = await fetch(`${baseUrl}/api/health`).then((response) => response.json());
-  assert.equal(health.version, "0.3.0");
+  assert.equal(health.version, "0.3.1");
 
   const update = await fetch(`${baseUrl}/api/update?refresh=1`).then((response) => response.json());
-  assert.equal(update.currentVersion, "0.3.0");
+  assert.equal(update.currentVersion, "0.3.1");
   assert.equal(update.latestVersion, "0.4.0");
   assert.equal(update.updateAvailable, true);
   assert.equal(update.error, "");

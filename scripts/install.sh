@@ -20,13 +20,13 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 22.5 or newer is required." >&2
+  echo "Node.js 22.13 or newer is required." >&2
   exit 1
 fi
 NODE_PATH="$(command -v node)"
 NODE_VERSION="$(node --version)"
-if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 5) ? 0 : 1)'; then
-  echo "Node.js 22.5 or newer is required. Found ${NODE_VERSION}." >&2
+if ! node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 13) ? 0 : 1)'; then
+  echo "Node.js 22.13 or newer is required. Found ${NODE_VERSION}." >&2
   exit 1
 fi
 PROVIDER_COUNT=0

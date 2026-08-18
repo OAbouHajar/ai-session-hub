@@ -64,7 +64,7 @@ Copy this prompt into Copilot, Claude, Codex, or Gemini:
 ```text
 Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this machine.
 
-Detect the operating system first. On macOS, verify git, Node.js 22.5+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
+Detect the operating system first. On macOS, verify git, Node.js 22.13+, and at least one supported AI CLI, then run `./scripts/install.sh --no-open`. On Windows, also verify PowerShell 7 and run `pwsh -File .\scripts\install.ps1 -NoOpen`. Stop on unsupported systems.
 
 Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.
 ```
@@ -75,7 +75,7 @@ Full prompts: [macOS](docs/copilot-install-prompt-macos.md) · [Windows](docs/co
 
 ### Install manually
 
-Requirements: Git, Node.js 22.5+, a signed-in supported AI CLI, and PowerShell 7 on Windows.
+Requirements: Git, Node.js 22.13+, a signed-in supported AI CLI, and PowerShell 7 on Windows.
 
 **macOS**
 

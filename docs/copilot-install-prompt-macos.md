@@ -6,7 +6,7 @@ Copy the prompt below into GitHub Copilot CLI. Copilot will clone the repository
 Install AI Session Hub from https://github.com/OAbouHajar/ai-session-hub on this Mac.
 
 Do the setup end-to-end:
-1. Verify that macOS, git, Node.js 22.5 or newer, and at least one supported AI CLI (GitHub Copilot, Claude Code, Codex, or Gemini) are installed.
+1. Verify that macOS, git, Node.js 22.13 or newer, and at least one supported AI CLI (GitHub Copilot, Claude Code, Codex, or Gemini) are installed.
 2. Verify that each detected AI CLI is usable and signed in. If a prerequisite is missing, stop and tell me the exact official installation command or link needed.
 3. Clone the repository into a temporary directory. If it is already cloned there, fetch and reset that temporary clone to the latest `main`.
 4. Read `README.md` and `scripts/install.sh` before executing the installer.

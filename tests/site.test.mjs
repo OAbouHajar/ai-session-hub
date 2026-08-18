@@ -17,12 +17,15 @@ test("landing page presents the project and AI-first installation path", async (
   assert.match(html, /Without Session Hub/);
   assert.match(html, /With Session Hub/);
   assert.match(html, /Ask your AI CLI to install it/);
+  assert.match(html, /id="copyHeroPrompt"/);
+  assert.match(html, /Copy AI install prompt/);
   assert.match(html, /id="installPrompt"/);
   assert.match(html, /Copilot/);
   assert.match(html, /Claude Code/);
   assert.match(html, /OpenAI Codex/);
   assert.match(html, /Google Gemini/);
   assert.match(html, /screenshots\/sessions-screenshot\.png/);
+  assert.match(script, /#copyPrompt, #copyHeroPrompt/);
   assert.match(script, /navigator\.clipboard\.writeText/);
   assert.match(workflow, /actions\/deploy-pages@v4/);
   assert.doesNotMatch(html, /<script[^>]+src=["']https?:/);

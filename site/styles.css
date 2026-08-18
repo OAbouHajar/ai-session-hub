@@ -89,9 +89,11 @@ h2 { margin-bottom: 1rem; font-size: clamp(2rem, 4.5vw, 3.4rem); }
   padding: 0.8rem 1.1rem;
   border: 1px solid transparent;
   border-radius: 9px;
+  font: inherit;
   font-size: 0.9rem;
   font-weight: 750;
   text-decoration: none;
+  cursor: pointer;
 }
 .button:hover { transform: translateY(-1px); }
 .primary { color: #061411; background: var(--teal); }

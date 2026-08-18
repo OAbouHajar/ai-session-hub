@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="AI Session Hub helps you track, visualize, and manage AI sessions, then turn ongoing work into projects.">
+  <meta name="description" content="Search AI coding sessions, restore context, resume instantly, and turn unfinished work into project boards.">
   <meta property="og:title" content="AI Session Hub">
-  <meta property="og:description" content="Track, visualize, and manage AI sessions in one local workspace.">
+  <meta property="og:description" content="Search sessions, restore context, resume work, and manage unfinished tasks locally.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://oabouhajar.github.io/ai-session-hub/">
   <meta property="og:image" content="https://oabouhajar.github.io/ai-session-hub/assets/logo.png">
@@ -31,88 +31,87 @@
   <main id="main">
     <section class="hero">
       <div>
-        <p class="eyebrow">Local AI session management</p>
-        <h1>Manage your AI sessions in one place.</h1>
-        <p class="lead">AI Session Hub helps you track, visualize, and manage sessions, see where work stopped, continue with context, and turn sessions into projects.</p>
+        <p class="eyebrow">Local continuity for AI coding</p>
+        <h1>Find the session.<br>Continue the work.</h1>
+        <p class="lead">Search every AI coding session, recover the useful context, resume with the right provider, or move unfinished work onto a project board.</p>
         <div class="actions">
           <button id="copyHeroPrompt" class="button primary" type="button">
             <span class="copy-label">Copy AI install prompt</span>
           </button>
-          <a class="button secondary" href="#how">See how it works</a>
+          <a class="button secondary" href="#capabilities">See capabilities</a>
         </div>
         <p class="note">Free, open source, and stored locally on your machine.</p>
       </div>
       <img class="hero-logo" src="assets/logo.png" alt="AI Session Hub — Remember. Resume. Continue.">
     </section>
 
-    <section class="problem">
-      <p class="eyebrow">Why do you need it?</p>
-      <h2>An AI session remembers the conversation.<br>Your next session may not.</h2>
-      <div class="comparison">
-        <article>
-          <span class="label before">Without Session Hub</span>
-          <h3>You rebuild the context</h3>
-          <p>“What was I working on?”</p>
-          <p>“Which files did we change?”</p>
-          <p>“Why did we choose this approach?”</p>
-          <p>“What was the next step?”</p>
-        </article>
-        <div class="arrow" aria-hidden="true">→</div>
-        <article class="with-hub">
-          <span class="label after">With Session Hub</span>
-          <h3>You continue the work</h3>
-          <p>Find the session you remember.</p>
-          <p>Review where it stopped.</p>
-          <p>See decisions and open questions.</p>
-          <p>Resume with the right AI command.</p>
-        </article>
-      </div>
+    <section class="facts" aria-label="Product facts">
+      <div><strong>4</strong><span>AI CLI providers</span></div>
+      <div><strong>2</strong><span>desktop platforms</span></div>
+      <div><strong>100%</strong><span>local session data</span></div>
+      <div><strong>1</strong><span>searchable workspace</span></div>
     </section>
 
-    <section id="how" class="how">
+    <section id="capabilities" class="capabilities">
       <div class="section-heading">
-        <p class="eyebrow">How it works</p>
-        <h2>One small habit. No lost thread.</h2>
+        <p class="eyebrow">Core capabilities</p>
+        <h2>Session data you can act on.</h2>
       </div>
-      <ol>
-        <li>
-          <span>1</span>
-          <div>
-            <h3>Work normally</h3>
-            <p>Use GitHub Copilot, Claude Code, OpenAI Codex, or Google Gemini as you already do.</p>
-          </div>
-        </li>
-        <li>
-          <span>2</span>
-          <div>
-            <h3>Wrap the session</h3>
-            <p>Ask the AI to save where you stopped and what comes next.</p>
-          </div>
-        </li>
-        <li>
-          <span>3</span>
-          <div>
-            <h3>Continue later</h3>
-            <p>Find the work in your local dashboard and resume with context.</p>
-          </div>
-        </li>
-      </ol>
+      <div class="capability-grid">
+        <article>
+          <span class="capability-number">01</span>
+          <h3>Search sessions</h3>
+          <p>Task · project · folder · action · filename</p>
+          <strong>Find the exact session from one remembered detail.</strong>
+        </article>
+        <article>
+          <span class="capability-number">02</span>
+          <h3>Restore context</h3>
+          <p>Summary · files · questions · decisions · next action</p>
+          <strong>See the useful state without rereading the transcript.</strong>
+        </article>
+        <article>
+          <span class="capability-number">03</span>
+          <h3>Resume instantly</h3>
+          <p>Copilot · Claude · Codex · Gemini</p>
+          <strong>Launch the matching provider with its session ID.</strong>
+        </article>
+        <article>
+          <span class="capability-number">04</span>
+          <h3>Convert to a project</h3>
+          <p>Backlog · Next · In progress · Blocked · Done</p>
+          <strong>Manage unfinished session work on a Kanban board.</strong>
+        </article>
+      </div>
     </section>
 
-    <section class="product">
-      <div class="product-copy">
-        <p class="eyebrow">Your local session memory</p>
-        <h2>Search what you remember.</h2>
-        <p>Search by task, project, folder, action, or file. Session Hub shows the provider, files involved, decisions, stopping point, and next action in one place.</p>
-        <ul>
-          <li>Runs locally at <code>127.0.0.1</code></li>
-          <li>Keeps session data in local SQLite</li>
-          <li>Supports macOS and Windows</li>
-          <li>Works across four major AI CLIs</li>
+    <section class="showcase">
+      <div class="showcase-copy">
+        <p class="eyebrow">Session continuity</p>
+        <h2>Search. Review. Resume.</h2>
+        <ul class="data-list">
+          <li><span>Search</span><strong>Across providers, tasks, folders, and files</strong></li>
+          <li><span>Review</span><strong>Last action, next action, questions, and evidence</strong></li>
+          <li><span>Resume</span><strong>With the provider-specific command</strong></li>
         </ul>
       </div>
       <div class="screenshot">
         <img src="screenshots/sessions-screenshot.png" alt="AI Session Hub showing searchable sessions and a saved continuity checkpoint">
+      </div>
+    </section>
+
+    <section class="board-showcase">
+      <div class="screenshot">
+        <img src="screenshots/board-screenshot.png" alt="AI Session Hub showing a project Kanban board created from session tasks">
+      </div>
+      <div class="showcase-copy">
+        <p class="eyebrow">Project execution</p>
+        <h2>Turn a session into a board.</h2>
+        <ul class="data-list">
+          <li><span>Track</span><strong>Promote any session to a project</strong></li>
+          <li><span>Plan</span><strong>Generate ordered tasks with `/kanban`</strong></li>
+          <li><span>Execute</span><strong>Move, reconcile, and process the next task</strong></li>
+        </ul>
       </div>
     </section>
 

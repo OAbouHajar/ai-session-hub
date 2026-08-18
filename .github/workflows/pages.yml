@@ -35,7 +35,6 @@ jobs:
           cp assets/logo.png _site/assets/
           cp public/logo-mark.png _site/assets/
           cp screenshots/sessions-screenshot.png _site/screenshots/
-          cp screenshots/board-screenshot.png _site/screenshots/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

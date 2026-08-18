@@ -12,16 +12,13 @@ test("landing page presents the project and AI-first installation path", async (
     readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8")
   ]);
 
-  assert.match(html, /Local continuity for AI coding/);
-  assert.match(html, /Find the session/);
-  assert.match(html, /Core capabilities/);
-  assert.match(html, /Search sessions/);
-  assert.match(html, /Restore context/);
-  assert.match(html, /Resume instantly/);
-  assert.match(html, /Convert to a project/);
-  assert.match(html, /100%/);
-  assert.match(html, /Search\. Review\. Resume\./);
-  assert.match(html, /Turn a session into a board/);
+  assert.match(html, /Local AI session management/);
+  assert.match(html, /Manage your AI sessions in one place/);
+  assert.match(html, /helps you track, visualize, and manage sessions/);
+  assert.match(html, /turn sessions into projects/);
+  assert.match(html, /Why do you need it/);
+  assert.match(html, /Without Session Hub/);
+  assert.match(html, /With Session Hub/);
   assert.match(html, /Ask your AI CLI to install it/);
   assert.match(html, /id="copyHeroPrompt"/);
   assert.match(html, /Copy AI install prompt/);
@@ -31,10 +28,8 @@ test("landing page presents the project and AI-first installation path", async (
   assert.match(html, /OpenAI Codex/);
   assert.match(html, /Google Gemini/);
   assert.match(html, /screenshots\/sessions-screenshot\.png/);
-  assert.match(html, /screenshots\/board-screenshot\.png/);
   assert.match(script, /#copyPrompt, #copyHeroPrompt/);
   assert.match(script, /navigator\.clipboard\.writeText/);
   assert.match(workflow, /actions\/deploy-pages@v4/);
-  assert.match(workflow, /board-screenshot\.png/);
   assert.doesNotMatch(html, /<script[^>]+src=["']https?:/);
 });

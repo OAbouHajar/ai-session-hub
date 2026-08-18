@@ -13,8 +13,9 @@ test("landing page presents the project and AI-first installation path", async (
   ]);
 
   assert.match(html, /Local AI session management/);
-  assert.match(html, /Manage your AI coding sessions in one place/);
-  assert.match(html, /find past work, see where it stopped, and continue with context/);
+  assert.match(html, /Manage your AI sessions in one place/);
+  assert.match(html, /helps you track, visualize, and manage sessions/);
+  assert.match(html, /turn sessions into projects/);
   assert.match(html, /Why do you need it/);
   assert.match(html, /Without Session Hub/);
   assert.match(html, /With Session Hub/);

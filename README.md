@@ -49,6 +49,7 @@ Find past work, understand where it stopped, and continue without reconstructing
 - Clear **where you left off** and **continue from here** views.
 - Structured wrap checkpoints and next-session todo lists.
 - Provider-specific resume commands.
+- In-app **Info** panel with the installed version, provider configuration, update status, release notes, and GitHub links.
 - Optional Kanban project tracking.
 - Local-only storage with safe upgrades.
 

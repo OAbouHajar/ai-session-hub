@@ -61,6 +61,20 @@ export async function configureProviderHooks(provider, action, options) {
   return { provider, action: action === "install" ? "installed" : "uninstalled", configPath };
 }
 
+export async function inspectProviderHooks(provider, options = {}) {
+  const env = options.env || process.env;
+  const detected = commandExists(provider, env);
+  const configPath = providerConfigPath(provider, env);
+  if (!existsSync(configPath)) return { provider, detected, configured: false, configPath };
+  const config = await readConfig(configPath);
+  const configured = Object.values(config.hooks || {}).some((groups) =>
+    Array.isArray(groups) && groups.some((group) =>
+      Array.isArray(group?.hooks) && group.hooks.some((handler) => isSessionHubHandler(handler, provider))
+    )
+  );
+  return { provider, detected, configured, configPath };
+}
+
 function providerHandler(provider, eventName, nodePath, hookPath) {
   if (provider === "claude") {
     return {

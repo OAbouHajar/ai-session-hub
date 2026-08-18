@@ -84,6 +84,10 @@
           <span id="topbarDetail">What happened and where to continue</span>
         </div>
         <div id="topActions" class="top-actions">
+          <button id="infoButton" class="button quiet" aria-expanded="false" aria-controls="infoPanel">
+            <svg viewBox="0 0 24 24"><path d="M11 10h2v7h-2v-7Zm0-3h2v2h-2V7Zm1-5a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16Z"/></svg>
+            Info
+          </button>
           <button id="commandPaletteButton" class="button quiet">
             <svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5 1.4-1.4L5.8 12l3.6-3.6L8 7Zm8 0-1.4 1.4 3.6 3.6-3.6 3.6L16 17l5-5-5-5Zm-5.1 12 4-14-1.9-.6-4 14 1.9.6Z"/></svg>
             Commands
@@ -99,6 +103,31 @@
             <button data-action="import-history">Import session history</button>
             <button data-action="archive">Archive session</button>
           </div>
+          <aside id="infoPanel" class="info-panel hidden" aria-label="AI Session Hub information">
+            <header>
+              <div>
+                <span class="section-label">AI Session Hub</span>
+                <strong id="infoVersion">Version —</strong>
+              </div>
+              <button id="closeInfo" class="icon-button" aria-label="Close information">
+                <svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
+              </button>
+            </header>
+            <div class="info-section">
+              <span class="info-label">Providers</span>
+              <div id="infoProviders" class="info-providers"></div>
+            </div>
+            <div class="info-section">
+              <span class="info-label">Updates</span>
+              <strong id="infoUpdateTitle">Checking for updates…</strong>
+              <span id="infoUpdateDetail" class="muted"></span>
+              <button id="refreshInfoUpdate" class="button secondary">Check now</button>
+            </div>
+            <nav class="info-links" aria-label="Project links">
+              <a id="infoReleaseLink" href="https://github.com/OAbouHajar/ai-session-hub/releases" target="_blank" rel="noopener noreferrer">Release notes</a>
+              <a id="infoRepositoryLink" href="https://github.com/OAbouHajar/ai-session-hub" target="_blank" rel="noopener noreferrer">GitHub repository</a>
+            </nav>
+          </aside>
         </div>
       </header>
 

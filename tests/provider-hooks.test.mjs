@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { configureProviderHooks } from "../scripts/provider-hooks.mjs";
+import { configureProviderHooks, inspectProviderHooks } from "../scripts/provider-hooks.mjs";
 
 for (const provider of ["claude", "codex", "gemini"]) {
   test(`installs and removes ${provider} hooks without changing existing hooks`, async () => {
@@ -24,6 +24,8 @@ for (const provider of ["claude", "codex", "gemini"]) {
 
     await configureProviderHooks(provider, "install", options);
     let config = JSON.parse(await readFile(configPath, "utf8"));
+    const inspected = await inspectProviderHooks(provider, { env, force: true });
+    assert.equal(inspected.configured, true);
     assert.equal(config.theme, "dark");
     assert.deepEqual(config.hooks.SessionStart[0].hooks, [existingHandler]);
     assert.equal(config.hooks.SessionStart.length, 2);

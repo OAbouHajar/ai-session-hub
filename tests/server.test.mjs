@@ -52,6 +52,19 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ sessionId: id, timestamp: Date.now(), cwd: process.cwd(), source: "new" })
   });
+
+  test("returns application version, providers, and public project links", async () => {
+    const response = await fetch(`${baseUrl}/api/info`);
+    assert.equal(response.status, 200);
+    const info = await response.json();
+    assert.match(info.version, /^\d+\.\d+\.\d+$/);
+    assert.equal(info.repositoryUrl, "https://github.com/OAbouHajar/ai-session-hub");
+    assert.equal(info.releasesUrl, "https://github.com/OAbouHajar/ai-session-hub/releases");
+    assert.deepEqual(info.providers.map((provider) => provider.id), ["copilot", "claude", "codex", "gemini"]);
+    assert.equal(info.providers.every((provider) =>
+      typeof provider.detected === "boolean" && typeof provider.configured === "boolean"
+    ), true);
+  });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).update.updateAvailable, true);
 

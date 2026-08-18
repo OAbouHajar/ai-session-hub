@@ -443,6 +443,9 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.equal((html.match(/data-add-board-task=/g) || []).length, 5);
   assert.match(html, /Resume this session/);
   assert.match(html, /id="sessionIdChip"/);
+  assert.match(html, /id="infoButton"/);
+  assert.match(html, /GitHub repository/);
+  assert.match(app, /\/api\/info/);
   assert.match(html, /id="providerBadge"/);
   assert.match(html, /id="updateBanner"/);
   assert.match(app, /No sessions match that search/);

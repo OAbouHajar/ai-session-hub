@@ -7,6 +7,7 @@ import { homedir, platform } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { createUpdateChecker } from "./update-checker.mjs";
+import { inspectProviderHooks } from "../scripts/provider-hooks.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = join(root, "public");
@@ -202,6 +203,7 @@ const server = http.createServer(async (request, response) => {
     if (!isAllowedRequest(request)) return json(response, 403, { error: "Request origin is not allowed" });
     const url = new URL(request.url, baseUrl);
     if (url.pathname === "/api/health") return json(response, 200, { ok: true, version: appVersion });
+    if (url.pathname === "/api/info" && request.method === "GET") return getApplicationInfo(response);
     if (url.pathname === "/api/update" && request.method === "GET") {
       if (url.searchParams.get("refresh") === "1") {
         const status = await updateChecker.check({ force: true });
@@ -343,6 +345,40 @@ function getStats(response) {
     FROM sessions
   `).get();
   json(response, 200, result);
+}
+
+async function getApplicationInfo(response) {
+  const providers = [{
+    id: "copilot",
+    name: "GitHub Copilot CLI",
+    detected: Boolean(resolveExecutable("copilot")),
+    configured: existsSync(join(homedir(), ".copilot", "installed-plugins", "_direct", "CopilotSessionHub", "plugin.json"))
+  }];
+  for (const provider of ["claude", "codex", "gemini"]) {
+    try {
+      const status = await inspectProviderHooks(provider);
+      providers.push({
+        id: provider,
+        name: providerConfig(provider).name,
+        detected: status.detected,
+        configured: status.configured
+      });
+    } catch {
+      providers.push({
+        id: provider,
+        name: providerConfig(provider).name,
+        detected: Boolean(resolveExecutable(provider)),
+        configured: false
+      });
+    }
+  }
+  json(response, 200, {
+    version: appVersion,
+    platform: platform(),
+    providers,
+    repositoryUrl: "https://github.com/OAbouHajar/ai-session-hub",
+    releasesUrl: "https://github.com/OAbouHajar/ai-session-hub/releases"
+  });
 }
 
 function getBoard(url, response) {

@@ -9,7 +9,8 @@ const state = {
   projects: [],
   selectedProjectId: localStorage.getItem("sessionHub.projectId"),
   commandIndex: 0,
-  update: null
+  update: null,
+  info: null
 };
 let modalReturnFocus = null;
 
@@ -107,6 +108,55 @@ async function refresh({ preserveSelection = true } = {}) {
   applyView();
 }
 
+async function toggleInfoPanel() {
+  const opening = elements.infoPanel.classList.contains("hidden");
+  if (!opening) return closeInfoPanel();
+  elements.infoPanel.classList.remove("hidden");
+  elements.infoButton.setAttribute("aria-expanded", "true");
+  if (!state.info) {
+    state.info = await api("/api/info");
+    renderApplicationInfo();
+  }
+  await refreshInfoUpdate(false);
+}
+
+function closeInfoPanel() {
+  elements.infoPanel.classList.add("hidden");
+  elements.infoButton.setAttribute("aria-expanded", "false");
+}
+
+function renderApplicationInfo() {
+  elements.infoVersion.textContent = `Version ${state.info.version}`;
+  elements.infoRepositoryLink.href = state.info.repositoryUrl;
+  elements.infoReleaseLink.href = state.info.releasesUrl;
+  elements.infoProviders.replaceChildren();
+  for (const provider of state.info.providers) {
+    const row = element("div", "info-provider");
+    row.append(
+      element("span", "", provider.name),
+      element("span", `info-provider-state ${provider.configured ? "configured" : provider.detected ? "detected" : "missing"}`,
+        provider.configured ? "Configured" : provider.detected ? "Detected" : "Not installed")
+    );
+    elements.infoProviders.append(row);
+  }
+}
+
+async function refreshInfoUpdate(force) {
+  const status = await api(`/api/update${force ? "?refresh=1" : ""}`);
+  state.update = status;
+  if (status.error) {
+    elements.infoUpdateTitle.textContent = "Update check unavailable";
+    elements.infoUpdateDetail.textContent = status.error;
+  } else if (status.updateAvailable) {
+    elements.infoUpdateTitle.textContent = `Version ${status.latestVersion} is available`;
+    elements.infoUpdateDetail.textContent = `Installed: ${status.currentVersion}`;
+    elements.infoReleaseLink.href = status.releaseUrl || state.info?.releasesUrl || elements.infoReleaseLink.href;
+  } else {
+    elements.infoUpdateTitle.textContent = "You are up to date";
+    elements.infoUpdateDetail.textContent = `Installed: ${status.currentVersion}`;
+  }
+}
+
 function bindEvents() {
   document.querySelectorAll(".filter").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -144,6 +194,9 @@ function bindEvents() {
     if (!elements.moreButton.contains(event.target) && !elements.moreMenu.contains(event.target)) {
       elements.moreMenu.classList.add("hidden");
     }
+    if (!elements.infoButton.contains(event.target) && !elements.infoPanel.contains(event.target)) {
+      closeInfoPanel();
+    }
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
@@ -170,6 +223,7 @@ function bindEvents() {
       closeDialog();
       closeWorkItemDialog();
       closeCommandPalette();
+      closeInfoPanel();
       closeSidebar();
     }
   });
@@ -193,6 +247,9 @@ function bindEvents() {
   elements.closeSidebar.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
   elements.themeButton.addEventListener("click", toggleTheme);
+  elements.infoButton.addEventListener("click", toggleInfoPanel);
+  elements.closeInfo.addEventListener("click", closeInfoPanel);
+  elements.refreshInfoUpdate.addEventListener("click", () => refreshInfoUpdate(true));
   elements.commandPaletteButton.addEventListener("click", openCommandPalette);
   elements.commandSearch.addEventListener("input", () => {
     state.commandIndex = 0;

@@ -12,7 +12,9 @@ test("landing page presents the project and AI-first installation path", async (
     readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8")
   ]);
 
-  assert.match(html, /Stop starting every AI coding session from zero/);
+  assert.match(html, /Local AI session management/);
+  assert.match(html, /Manage your AI coding sessions in one place/);
+  assert.match(html, /find past work, see where it stopped, and continue with context/);
   assert.match(html, /Why do you need it/);
   assert.match(html, /Without Session Hub/);
   assert.match(html, /With Session Hub/);

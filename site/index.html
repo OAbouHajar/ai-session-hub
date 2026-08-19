@@ -45,74 +45,60 @@
       <img class="hero-logo" src="assets/logo.png" alt="AI Session Hub — Remember. Resume. Continue.">
     </section>
 
-    <section class="problem">
-      <p class="eyebrow">Why do you need it?</p>
-      <h2>An AI session remembers the conversation.<br>Your next session may not.</h2>
-      <div class="comparison">
-        <article>
-          <span class="label before">Without Session Hub</span>
-          <h3>You rebuild the context</h3>
-          <p>“What was I working on?”</p>
-          <p>“Which files did we change?”</p>
-          <p>“Why did we choose this approach?”</p>
-          <p>“What was the next step?”</p>
-        </article>
-        <div class="arrow" aria-hidden="true">→</div>
-        <article class="with-hub">
-          <span class="label after">With Session Hub</span>
-          <h3>You continue the work</h3>
-          <p>Find the session you remember.</p>
-          <p>Review where it stopped.</p>
-          <p>See decisions and open questions.</p>
-          <p>Resume with the right AI command.</p>
-        </article>
-      </div>
+    <section class="proof-strip">
+      <div><strong>Readable sessions</strong><span>Summary · stopping point · next action</span></div>
+      <div><strong>Complete history</strong><span>Questions · skills · actions</span></div>
+      <div><strong>Project execution</strong><span>Tasks · Kanban · recommended next step</span></div>
     </section>
 
-    <section id="how" class="how">
-      <div class="section-heading">
-        <p class="eyebrow">How it works</p>
-        <h2>One small habit. No lost thread.</h2>
-      </div>
-      <ol>
-        <li>
-          <span>1</span>
-          <div>
-            <h3>Work normally</h3>
-            <p>Use GitHub Copilot, Claude Code, OpenAI Codex, or Google Gemini as you already do.</p>
-          </div>
-        </li>
-        <li>
-          <span>2</span>
-          <div>
-            <h3>Wrap the session</h3>
-            <p>Ask the AI to save where you stopped and what comes next.</p>
-          </div>
-        </li>
-        <li>
-          <span>3</span>
-          <div>
-            <h3>Continue later</h3>
-            <p>Find the work in your local dashboard and resume with context.</p>
-          </div>
-        </li>
-      </ol>
-    </section>
-
-    <section class="product">
-      <div class="product-copy">
-        <p class="eyebrow">Your local session memory</p>
-        <h2>Search what you remember.</h2>
-        <p>Search by task, project, folder, action, or file. Session Hub shows the provider, files involved, decisions, stopping point, and next action in one place.</p>
-        <ul>
-          <li>Runs locally at <code>127.0.0.1</code></li>
-          <li>Keeps session data in local SQLite</li>
-          <li>Supports macOS and Windows</li>
-          <li>Works across four major AI CLIs</li>
+    <section id="how" class="value-section">
+      <div class="value-copy">
+        <p class="eyebrow">Understand the session</p>
+        <h2>See where you left off and what comes next.</h2>
+        <p>The useful result of the conversation is always visible at the top. No transcript archaeology.</p>
+        <ul class="outcomes">
+          <li><span>Summary</span><strong>What the session accomplished</strong></li>
+          <li><span>Stopping point</span><strong>The last meaningful completed action</strong></li>
+          <li><span>Next action</span><strong>The exact work to continue with</strong></li>
+          <li><span>Resume</span><strong>Launch the matching AI CLI session</strong></li>
         </ul>
       </div>
       <div class="screenshot">
-        <img src="screenshots/sessions-screenshot.png" alt="AI Session Hub showing searchable sessions and a saved continuity checkpoint">
+        <img src="screenshots/sessions-screenshot.png" alt="Session view showing summary, where work stopped, and what to do next">
+      </div>
+    </section>
+
+    <section class="value-section reverse">
+      <div class="value-copy">
+        <p class="eyebrow">Review the conversation</p>
+        <h2>See every question and action in order.</h2>
+        <p>The session becomes a clean chronological record instead of raw internal messages.</p>
+        <ul class="outcomes">
+          <li><span>Questions</span><strong>Every user request in sequence</strong></li>
+          <li><span>Skills</span><strong>Human-readable skill calls</strong></li>
+          <li><span>Noise</span><strong>System-only details removed</strong></li>
+          <li><span>Recall</span><strong>Understand how the work evolved</strong></li>
+        </ul>
+      </div>
+      <div class="screenshot">
+        <img src="screenshots/questions-screenshot.png" alt="Questions and actions list for an AI coding session">
+      </div>
+    </section>
+
+    <section class="value-section">
+      <div class="value-copy">
+        <p class="eyebrow">Turn the session into a project</p>
+        <h2>Convert unfinished work into a Kanban board.</h2>
+        <p>A session does not have to end as a transcript. Promote it to a project and manage the follow-up work.</p>
+        <ul class="outcomes">
+          <li><span>Extract</span><strong>Turn next actions into tasks</strong></li>
+          <li><span>Prioritize</span><strong>Backlog, Next, In progress, Blocked, Done</strong></li>
+          <li><span>Recommend</span><strong>Keep the next actionable task visible</strong></li>
+          <li><span>Return</span><strong>Open the full session context at any time</strong></li>
+        </ul>
+      </div>
+      <div class="screenshot">
+        <img src="screenshots/board-screenshot.png" alt="AI Session Hub project board with session tasks organized across Kanban columns">
       </div>
     </section>
 

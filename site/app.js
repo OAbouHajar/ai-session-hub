@@ -1,22 +1,24 @@
-const copyButtons = document.querySelectorAll("#copyPrompt, #copyHeroPrompt");
-const prompt = document.querySelector("#installPrompt");
+const installPrompt = document.querySelector("#installPrompt");
+const copyButtons = [
+  document.querySelector("#copyHeroPrompt"),
+  document.querySelector("#copyPrompt"),
+].filter(Boolean);
 
-copyButtons.forEach((button) => button.addEventListener("click", async () => {
-  try {
-    await navigator.clipboard.writeText(prompt.textContent);
+copyButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
     const label = button.querySelector(".copy-label");
-    const originalLabel = label.textContent;
-    label.textContent = "Copied — paste it into your AI CLI";
-    button.classList.add("copied");
+    const original = label.textContent;
+
+    try {
+      await navigator.clipboard.writeText(installPrompt.textContent.trim());
+      label.textContent = "Copied";
+    } catch {
+      label.textContent = "Select prompt below";
+      installPrompt.closest(".prompt").scrollIntoView({ behavior: "smooth" });
+    }
+
     window.setTimeout(() => {
-      label.textContent = originalLabel;
-      button.classList.remove("copied");
+      label.textContent = original;
     }, 1800);
-  } catch {
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(prompt);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-}));
+  });
+});

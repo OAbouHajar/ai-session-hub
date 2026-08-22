@@ -12,26 +12,24 @@ test("landing page presents the project and AI-first installation path", async (
     readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8")
   ]);
 
-  assert.match(html, /Local AI session management/);
-  assert.match(html, /Manage your AI sessions in one place/);
-  assert.match(html, /helps you track, visualize, and manage sessions/);
-  assert.match(html, /turn sessions into projects/);
-  assert.match(html, /Readable sessions/);
-  assert.match(html, /See where you left off and what comes next/);
-  assert.match(html, /See every question and action in order/);
-  assert.match(html, /Convert unfinished work into a Kanban board/);
-  assert.match(html, /Ask your AI CLI to install it/);
+  assert.match(html, /AI work management for your local machine/);
+  assert.match(html, /Turn AI conversations into managed projects/);
+  assert.match(html, /tasks, project boards, progress, and effort insights/);
+  assert.match(html, /Your AI chat is not the project/);
+  assert.match(html, /One board/);
+  assert.match(html, /See what the result really took/);
+  assert.match(html, /Stop anywhere/);
+  assert.match(html, /Let your AI set it up/);
   assert.match(html, /id="copyHeroPrompt"/);
-  assert.match(html, /Copy AI install prompt/);
+  assert.match(html, /Install with AI/);
   assert.match(html, /id="installPrompt"/);
   assert.match(html, /Copilot/);
   assert.match(html, /Claude Code/);
   assert.match(html, /OpenAI Codex/);
   assert.match(html, /Google Gemini/);
-  assert.match(html, /screenshots\/sessions-screenshot\.png/);
-  assert.match(html, /screenshots\/questions-screenshot\.png/);
   assert.match(html, /screenshots\/board-screenshot\.png/);
-  assert.match(script, /#copyPrompt, #copyHeroPrompt/);
+  assert.match(script, /copyHeroPrompt/);
+  assert.match(script, /copyPrompt/);
   assert.match(script, /navigator\.clipboard\.writeText/);
   assert.match(workflow, /actions\/deploy-pages@v4/);
   assert.match(workflow, /questions-screenshot\.png/);

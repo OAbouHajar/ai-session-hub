@@ -3,115 +3,182 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="AI Session Hub helps you track, visualize, and manage AI sessions, then turn ongoing work into projects.">
-  <meta property="og:title" content="AI Session Hub">
-  <meta property="og:description" content="Track, visualize, and manage AI sessions in one local workspace.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://oabouhajar.github.io/ai-session-hub/">
-  <meta property="og:image" content="https://oabouhajar.github.io/ai-session-hub/assets/logo.png">
-  <meta name="twitter:card" content="summary_large_image">
+  <meta name="description" content="AI Session Hub turns AI sessions into structured projects you can plan, track, and measure.">
   <meta name="theme-color" content="#07111d">
-  <title>AI Session Hub — Continue with context</title>
-  <link rel="canonical" href="https://oabouhajar.github.io/ai-session-hub/">
+  <title>AI Session Hub — Turn sessions into managed work</title>
   <link rel="icon" href="assets/logo-mark.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-
-  <header>
+  <header class="site-header">
     <a class="brand" href="#" aria-label="AI Session Hub home">
       <img src="assets/logo-mark.png" alt="">
-      <span>AI Session Hub</span>
+      <span>
+        <strong>AI Session Hub</strong>
+        <small>AI work management</small>
+      </span>
     </a>
-    <a class="github-link" href="https://github.com/OAbouHajar/ai-session-hub">GitHub</a>
+    <nav aria-label="Primary navigation">
+      <a href="#workflow">From chat to project</a>
+      <a href="#workspace">Workspace</a>
+      <a href="#measure">Insights</a>
+      <a class="nav-cta" href="#install">Install</a>
+    </nav>
   </header>
 
   <main id="main">
     <section class="hero">
-      <div>
-        <p class="eyebrow">Local AI session management</p>
-        <h1>Manage your AI sessions in one place.</h1>
-        <p class="lead">AI Session Hub helps you track, visualize, and manage sessions, see where work stopped, continue with context, and turn sessions into projects.</p>
+      <div class="hero-copy">
+        <p class="eyebrow">AI work management for your local machine</p>
+        <h1>Turn AI conversations into managed projects.</h1>
+        <p class="lead">AI Session Hub captures the work inside your coding sessions and turns it into tasks, project boards, progress, and effort insights.</p>
+        <div class="quick-value" aria-label="What AI Session Hub does">
+          <div>
+            <strong>Capture</strong>
+            <span>Decisions and next actions</span>
+          </div>
+          <div>
+            <strong>Manage</strong>
+            <span>Tasks and project boards</span>
+          </div>
+          <div>
+            <strong>Measure</strong>
+            <span>Time, progress, and AI usage</span>
+          </div>
+        </div>
         <div class="actions">
           <button id="copyHeroPrompt" class="button primary" type="button">
-            <span class="copy-label">Copy AI install prompt</span>
+            <span class="copy-label">Install with AI</span>
           </button>
-          <a class="button secondary" href="#how">See how it works</a>
+          <a class="button secondary" href="#workflow">See the workflow</a>
         </div>
-        <p class="note">Free, open source, and stored locally on your machine.</p>
+        <div class="trust-row" aria-label="Product attributes">
+          <span>Local-first</span>
+          <span>Open source</span>
+          <span>macOS + Windows</span>
+          <span>4 AI CLIs</span>
+        </div>
       </div>
-      <img class="hero-logo" src="assets/logo.png" alt="AI Session Hub — Remember. Resume. Continue.">
+
+      <div class="hero-visual">
+        <div class="visual-window">
+          <div class="window-bar">
+            <span></span><span></span><span></span>
+            <small>Project workspace</small>
+          </div>
+          <img src="screenshots/board-screenshot.png" alt="AI Session Hub project board with work organized by status">
+        </div>
+        <div class="metric-card metric-time">
+          <span>Time across sessions</span>
+          <strong>12h 34m</strong>
+          <small>Effort visible</small>
+        </div>
+        <div class="metric-card metric-progress">
+          <span>Project progress</span>
+          <strong>68%</strong>
+          <small>17 of 25 tasks</small>
+        </div>
+      </div>
     </section>
 
-    <section class="proof-strip">
-      <div><strong>Readable sessions</strong><span>Summary · stopping point · next action</span></div>
-      <div><strong>Complete history</strong><span>Questions · skills · actions</span></div>
-      <div><strong>Project execution</strong><span>Tasks · Kanban · recommended next step</span></div>
+    <section id="workflow" class="positioning">
+      <p class="eyebrow">From chat to project</p>
+      <h2>Your AI chat is not the project.</h2>
+      <p class="section-lead">The chat creates work. Session Hub makes that work visible and manageable.</p>
+      <div class="session-to-project" aria-label="Session to project flow">
+        <article>
+          <span class="step-icon">01</span>
+          <small>Start here</small>
+          <h3>AI session</h3>
+          <p>Ideas, decisions, and code.</p>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article>
+          <span class="step-icon">02</span>
+          <small>Turn it into</small>
+          <h3>Clear work</h3>
+          <p>Tasks, context, and next steps.</p>
+        </article>
+        <span class="flow-arrow" aria-hidden="true">→</span>
+        <article class="highlight-card">
+          <span class="step-icon">03</span>
+          <small>Manage it as</small>
+          <h3>A real project</h3>
+          <p>Board, progress, and effort.</p>
+        </article>
+      </div>
     </section>
 
-    <section id="how" class="value-section">
-      <div class="value-copy">
-        <p class="eyebrow">Understand the session</p>
-        <h2>See where you left off and what comes next.</h2>
-        <p>The useful result of the conversation is always visible at the top. No transcript archaeology.</p>
-        <ul class="outcomes">
-          <li><span>Summary</span><strong>What the session accomplished</strong></li>
-          <li><span>Stopping point</span><strong>The last meaningful completed action</strong></li>
-          <li><span>Next action</span><strong>The exact work to continue with</strong></li>
-          <li><span>Resume</span><strong>Launch the matching AI CLI session</strong></li>
+    <section id="workspace" class="workspace">
+      <div class="workspace-copy">
+        <p class="eyebrow">Know what happens next</p>
+        <h2>One board.<br>Every next step.</h2>
+        <p>See what to do now, what is blocked, and what shipped—across every AI session.</p>
+        <ul>
+          <li>Prioritized tasks</li>
+          <li>Project progress</li>
+          <li>Recommended next action</li>
         </ul>
       </div>
-      <div class="screenshot">
-        <img src="screenshots/sessions-screenshot.png" alt="Session view showing summary, where work stopped, and what to do next">
+      <div class="screenshot-frame">
+        <img src="screenshots/board-screenshot.png" alt="AI Session Hub Kanban board organizing session work into a managed project">
       </div>
     </section>
 
-    <section class="value-section reverse">
-      <div class="value-copy">
-        <p class="eyebrow">Review the conversation</p>
-        <h2>See every question and action in order.</h2>
-        <p>The session becomes a clean chronological record instead of raw internal messages.</p>
-        <ul class="outcomes">
-          <li><span>Questions</span><strong>Every user request in sequence</strong></li>
-          <li><span>Skills</span><strong>Human-readable skill calls</strong></li>
-          <li><span>Noise</span><strong>System-only details removed</strong></li>
-          <li><span>Recall</span><strong>Understand how the work evolved</strong></li>
-        </ul>
+    <section id="measure" class="measure">
+      <div class="section-heading centered">
+        <div>
+          <p class="eyebrow">Measure the work</p>
+          <h2>See what the result really took.</h2>
+        </div>
+        <p>Four answers. No guesswork.</p>
       </div>
-      <div class="screenshot">
-        <img src="screenshots/questions-screenshot.png" alt="Questions and actions list for an AI coding session">
+      <div class="insight-grid">
+        <article>
+          <strong>Time</strong>
+          <h3>How long?</h3>
+          <p>Effort across every session.</p>
+        </article>
+        <article>
+          <strong>Progress</strong>
+          <h3>What moved?</h3>
+          <p>Open, active, blocked, and done.</p>
+        </article>
+        <article>
+          <strong>AI usage</strong>
+          <h3>What did AI use?</h3>
+          <p>Models, context, tokens, and credits.</p>
+        </article>
+        <article>
+          <strong>Evidence</strong>
+          <h3>What changed?</h3>
+          <p>Files, decisions, and session history.</p>
+        </article>
       </div>
     </section>
 
-    <section class="value-section">
-      <div class="value-copy">
-        <p class="eyebrow">Turn the session into a project</p>
-        <h2>Convert unfinished work into a Kanban board.</h2>
-        <p>A session does not have to end as a transcript. Promote it to a project and manage the follow-up work.</p>
-        <ul class="outcomes">
-          <li><span>Extract</span><strong>Turn next actions into tasks</strong></li>
-          <li><span>Prioritize</span><strong>Backlog, Next, In progress, Blocked, Done</strong></li>
-          <li><span>Recommend</span><strong>Keep the next actionable task visible</strong></li>
-          <li><span>Return</span><strong>Open the full session context at any time</strong></li>
-        </ul>
+    <section class="continuity">
+      <div>
+        <p class="eyebrow">Built-in continuity</p>
+        <h2>Stop anywhere.<br>Resume ready.</h2>
       </div>
-      <div class="screenshot">
-        <img src="screenshots/board-screenshot.png" alt="AI Session Hub project board with session tasks organized across Kanban columns">
-      </div>
+      <p>Your context, next action, and project state are ready when you return.</p>
     </section>
 
     <section id="install" class="install">
-      <div class="section-heading">
-        <p class="eyebrow">Quick start</p>
-        <h2>Ask your AI CLI to install it.</h2>
-        <p>Copy this prompt into GitHub Copilot, Claude Code, OpenAI Codex, or Google Gemini.</p>
+      <div class="section-heading centered">
+        <div>
+          <p class="eyebrow">Install with one prompt</p>
+          <h2>Let your AI set it up.</h2>
+        </div>
+        <p>GitHub Copilot · Claude Code · OpenAI Codex · Google Gemini</p>
       </div>
       <div class="prompt">
         <div class="prompt-bar">
-          <strong>Installation prompt</strong>
-          <button id="copyPrompt" type="button" aria-label="Copy installation prompt">
+          <strong>AI installation prompt</strong>
+          <button id="copyPrompt" type="button">
             <span class="copy-label">Copy prompt</span>
           </button>
         </div>
@@ -121,22 +188,25 @@ Detect the operating system first. On macOS, verify git, Node.js 22.13+, and at 
 
 Clone the latest main branch into a temporary directory, read the README and matching installer, preserve existing Session Hub data and unrelated AI CLI settings, and configure every detected provider. Verify `http://127.0.0.1:43120/api/health` returns `ok: true`, open the dashboard, and report the installed version, configured providers, and any remaining restart or trust action. Proceed autonomously and only ask before administrator-required or destructive actions.</code></pre>
       </div>
-      <p class="manual">Prefer to install it yourself? <a href="https://github.com/OAbouHajar/ai-session-hub#quick-start">See the macOS and Windows commands.</a></p>
     </section>
 
-    <section class="local">
+    <section class="local-first">
       <img src="assets/logo-mark.png" alt="">
       <div>
-        <h2>Your sessions stay on your machine.</h2>
-        <p>AI Session Hub is a local dashboard. It does not upload your session data.</p>
+        <p class="eyebrow">Local-first</p>
+        <h2>Your work stays yours.</h2>
+        <p>Runs on localhost. Stores data locally. No hosted dashboard.</p>
       </div>
     </section>
   </main>
 
   <footer>
-    <span>AI Session Hub · Remember. Resume. Continue.</span>
+    <div>
+      <strong>AI Session Hub</strong>
+      <span>Turn AI sessions into managed work.</span>
+    </div>
     <nav aria-label="Footer">
-      <a href="https://github.com/OAbouHajar/ai-session-hub">Repository</a>
+      <a href="https://github.com/OAbouHajar/ai-session-hub">GitHub</a>
       <a href="https://github.com/OAbouHajar/ai-session-hub/tree/main/docs/providers">Provider guides</a>
       <a href="https://github.com/OAbouHajar/ai-session-hub/issues">Issues</a>
     </nav>

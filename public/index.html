@@ -17,14 +17,14 @@
 <body>
   <a class="skip-link" href="#mainContent">Skip to session details</a>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Session history">
+    <aside class="sidebar" aria-label="Project workspace">
       <header class="brand">
         <span class="brand-mark" aria-hidden="true">
           <img src="/logo-mark.png" alt="">
         </span>
         <span>
           <strong>AI Session Hub</strong>
-          <small>Find past work and continue</small>
+          <small>AI project management</small>
         </span>
         <button id="closeSidebar" class="icon-button sidebar-close" aria-label="Close session history">
           <svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
@@ -32,18 +32,18 @@
       </header>
 
       <nav class="view-switch" aria-label="Primary view">
-        <button class="active" data-view="sessions" aria-pressed="true">
+        <button class="active" data-view="board" aria-pressed="true">
+          <svg viewBox="0 0 24 24"><path d="M3 4h5v16H3V4Zm7 0h5v10h-5V4Zm7 0h4v13h-4V4Z"/></svg>
+          Projects
+        </button>
+        <button data-view="sessions" aria-pressed="false">
           <svg viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-5l-2 2-2-2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
           Sessions
-        </button>
-        <button data-view="board" aria-pressed="false">
-          <svg viewBox="0 0 24 24"><path d="M3 4h5v16H3V4Zm7 0h5v10h-5V4Zm7 0h4v13h-4V4Z"/></svg>
-          Board
         </button>
       </nav>
 
       <label class="search" for="searchInput">
-        <span class="search-label">Search what you remember</span>
+        <span class="search-label">Find a project or session</span>
         <span class="search-field">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 20-4.7-4.7a8 8 0 1 0-1 1L20 21l1-1ZM5.5 10.5a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z"/></svg>
           <input id="searchInput" type="search" placeholder="Task, project, folder, or file" autocomplete="off">
@@ -55,6 +55,7 @@
         <button class="filter active" data-filter="wrapped" aria-pressed="true"><span>Wrapped</span><b id="wrappedCount">0</b></button>
         <button class="filter" data-filter="active" aria-pressed="false"><span>Active</span><b id="activeCount">0</b></button>
         <button class="filter" data-filter="paused" aria-pressed="false"><span>Paused</span><b id="pausedCount">0</b></button>
+        <button class="filter" data-filter="unassigned" aria-pressed="false"><span>Unassigned</span><b id="unassignedCount">0</b></button>
       </nav>
 
       <div class="sidebar-heading">
@@ -98,7 +99,6 @@
           </button>
           <div id="moreMenu" class="menu hidden">
             <button data-action="pin">Pin session</button>
-            <button data-action="track-project">Track as project</button>
             <button data-action="folder">Open folder</button>
             <button data-action="import-history">Import session history</button>
             <button data-action="archive">Archive session</button>
@@ -223,7 +223,7 @@
             <small>Files, checklist, activity, metrics, and linked work</small>
           </header>
           <div class="context-sections">
-            <section class="context-section files-section">
+            <section id="filesSection" class="context-section files-section">
               <div class="section-heading">
                 <div><span class="section-label">Evidence</span><h2>Files involved</h2></div>
                 <span id="fileHistoryMessage" class="muted"></span>
@@ -273,7 +273,7 @@
                 <div><dt>Model</dt><dd id="modelMetric">—</dd><small id="tierMetric">—</small></div>
               </dl>
               <div class="secondary-actions">
-                <button id="trackProjectButton" class="button secondary"><span>Track as project</span></button>
+                <button id="trackProjectButton" class="button secondary"><span>Open project workspace</span></button>
               </div>
             </section>
           </div>
@@ -281,59 +281,164 @@
       </article>
 
       <section id="boardView" class="board-view hidden">
-        <header class="board-header">
-          <button data-view="sessions" class="button quiet" aria-pressed="false">
-            <svg viewBox="0 0 24 24"><path d="m11 5-7 7 7 7 1.4-1.4L7.8 13H20v-2H7.8l4.6-4.6L11 5Z"/></svg>
-            Back to sessions
-          </button>
+        <header class="project-workspace-header">
           <div>
-            <span class="section-label">Secondary workspace</span>
-            <h1>Projects</h1>
-            <p>Organize unfinished work when you need a delivery view.</p>
+            <div class="project-status-line">
+              <span class="project-status"><i></i> <span id="projectStatusLabel">In progress</span></span>
+              <span id="projectUpdatedLabel">Project activity</span>
+            </div>
+            <h1 id="projectWorkspaceTitle">Projects</h1>
+            <p id="projectWorkspaceSummary">Turn wrapped AI sessions into structured, measurable project work.</p>
+            <div class="project-meta-row">
+              <div id="projectWorkspaceMeta" class="project-workspace-meta"></div>
+              <button id="linkProjectWorkItemButton" class="project-meta-link">
+                <svg viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 0 0 1.4 0l3.5-3.5a3 3 0 1 0-4.2-4.2L9.6 7.4 8.2 6l1.7-1.7a5 5 0 1 1 7.1 7.1l-3.6 3.5a3 3 0 0 1-4.2 0l1.4-1.5Zm2.8-2.8a1 1 0 0 0-1.4 0l-3.5 3.5a3 3 0 1 0 4.2 4.2l1.7-1.7 1.4 1.4-1.7 1.7A5 5 0 1 1 7 12.6l3.6-3.5a3 3 0 0 1 4.2 0l-1.4 1.5Z"/></svg>
+                Link work item
+              </button>
+            </div>
+            <div id="projectWorkItems" class="project-work-items"></div>
+          </div>
+          <div class="project-header-actions">
+            <button id="createProjectButton" class="button primary">New project</button>
+            <button id="openProjectButton" class="button secondary">Open latest session</button>
           </div>
         </header>
-        <div class="project-toolbar">
-          <label for="projectSelect">Tracked project</label>
-          <select id="projectSelect"></select>
-          <div id="boardWorkItems" class="board-work-items"></div>
-          <button id="openProjectButton" class="button secondary">Open session</button>
-        </div>
-        <div id="coachStrip" class="coach-strip hidden">
-          <div><span class="section-label">Recommended next action</span><strong id="coachNextAction">Run /kanban to generate an ordered execution plan.</strong></div>
-          <code>/kanban</code>
-        </div>
         <div id="noProjects" class="no-projects hidden">
-          <strong>No tracked project selected</strong>
-          <span>Track a session as a project to give it a board.</span>
+          <strong>No project exists yet</strong>
+          <span>Run /hub-project or create a goal-based project here. Sessions remain unassigned until you choose.</span>
         </div>
-        <div id="boardSummary" class="board-summary" aria-label="Project progress">
-          <span><b id="boardOpenCount">0</b> open</span>
-          <span><b id="boardProgressCount">0</b> in progress</span>
-          <span><b id="boardBlockedCount">0</b> blocked</span>
-          <span><b id="boardDoneCount">0</b> done</span>
-        </div>
-        <div id="kanbanBoard" class="kanban-board">
-          <section class="kanban-column" data-status="backlog">
-            <header><span>Backlog</span><div><b data-count="backlog">0</b><button class="column-add-task" data-add-board-task="backlog" aria-label="Add task to Backlog">+</button></div></header>
-            <div class="kanban-cards" data-dropzone="backlog"></div>
-          </section>
-          <section class="kanban-column" data-status="next">
-            <header><span>Next</span><div><b data-count="next">0</b><button class="column-add-task" data-add-board-task="next" aria-label="Add task to Next">+</button></div></header>
-            <div class="kanban-cards" data-dropzone="next"></div>
-          </section>
-          <section class="kanban-column" data-status="in_progress">
-            <header><span>In progress</span><div><b data-count="in_progress">0</b><button class="column-add-task" data-add-board-task="in_progress" aria-label="Add task to In progress">+</button></div></header>
-            <div class="kanban-cards" data-dropzone="in_progress"></div>
-          </section>
-          <section class="kanban-column" data-status="blocked">
-            <header><span>Blocked</span><div><b data-count="blocked">0</b><button class="column-add-task" data-add-board-task="blocked" aria-label="Add task to Blocked">+</button></div></header>
-            <div class="kanban-cards" data-dropzone="blocked"></div>
-          </section>
-          <section class="kanban-column" data-status="done">
-            <header><span>Done</span><div><b data-count="done">0</b><button class="column-add-task" data-add-board-task="done" aria-label="Add task to Done">+</button></div></header>
-            <div class="kanban-cards" data-dropzone="done"></div>
-          </section>
-        </div>
+
+        <nav id="projectTabs" class="project-tabs" aria-label="Project views">
+          <button class="active" data-project-tab="overview" aria-pressed="true">Overview</button>
+          <button data-project-tab="board" aria-pressed="false">Board <b id="projectBoardTabCount">0</b></button>
+          <button data-project-tab="sessions" aria-pressed="false">Sessions <b id="projectSessionTabCount">0</b></button>
+          <button data-project-tab="insights" aria-pressed="false">Insights</button>
+        </nav>
+
+        <section id="projectOverviewPanel" class="project-panel">
+          <div class="project-overview-grid">
+            <div class="project-primary-column">
+              <article class="project-next-action">
+                <header><span>Recommended next action</span><em>Ready</em></header>
+                <div>
+                  <span class="next-action-index">01</span>
+                  <div>
+                    <h2 id="projectNextAction">Run /wrap to establish the next project action.</h2>
+                    <p id="projectNextContext">The latest wrapped session keeps this recommendation current.</p>
+                  </div>
+                  <button id="startProjectAction" class="button primary">Start work</button>
+                </div>
+              </article>
+
+              <div class="project-section-heading">
+                <div><span class="section-label">Current state</span><h2>Where the project stands</h2></div>
+                <small>Updated from wrapped sessions</small>
+              </div>
+              <div class="project-state-grid">
+                <article>
+                  <span class="project-state-icon complete">✓</span>
+                  <div><small>Just completed</small><strong id="projectLastCompleted">No completed work recorded yet.</strong></div>
+                </article>
+                <article>
+                  <span class="project-state-icon current">→</span>
+                  <div><small>Working on now</small><strong id="projectCurrentWork">No task is in progress.</strong></div>
+                </article>
+                <article>
+                  <span class="project-state-icon blocked">!</span>
+                  <div><small>Needs attention</small><strong id="projectBlockedWork">No blockers recorded.</strong></div>
+                </article>
+              </div>
+
+              <div class="project-section-heading compact">
+                <div><span class="section-label">Execution</span><h2>Next tasks</h2></div>
+                <button class="project-text-action" data-show-project-tab="board">Open board →</button>
+              </div>
+              <div id="projectNextTasks" class="project-next-tasks"></div>
+
+              <aside class="wrap-project-note">
+                <code>/wrap</code>
+                <div><strong>Wrap updates this project only when the session is linked.</strong><span>Unassigned sessions stay independent until you choose a project with /hub-project or the dashboard.</span></div>
+              </aside>
+            </div>
+
+            <aside class="project-insight-column">
+              <article class="project-progress-card">
+                <header><span>Project progress</span><strong id="projectProgressLabel">0%</strong></header>
+                <div id="projectProgressRing" class="project-progress-ring" style="--progress: 0">
+                  <div><strong id="projectProgressValue">0%</strong><span id="projectProgressDetail">No tasks yet</span></div>
+                </div>
+                <div class="project-progress-bar"><i id="projectProgressBar"></i></div>
+                <div id="projectProgressLegend" class="project-progress-legend"></div>
+              </article>
+
+              <article class="project-effort-card">
+                <header><span>Project effort</span><small>All sessions</small></header>
+                <dl>
+                  <div><dt>Time</dt><dd id="projectEffortTime">—</dd></div>
+                  <div><dt>AI credits</dt><dd id="projectEffortCredits">—</dd></div>
+                  <div><dt>Sessions</dt><dd id="projectEffortSessions">0</dd></div>
+                  <div><dt>Files</dt><dd id="projectEffortFiles">0</dd></div>
+                </dl>
+              </article>
+
+              <article class="project-latest-session">
+                <header><span>Latest session</span><em>Wrapped</em></header>
+                <h3 id="projectLatestSessionTitle">No wrapped session yet</h3>
+                <p id="projectLatestSessionSummary">Run /wrap to connect session outcomes to this project.</p>
+                <button id="openLatestProjectSession" class="project-text-action">Open session →</button>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section id="projectBoardPanel" class="project-panel hidden">
+          <div id="coachStrip" class="coach-strip hidden">
+            <div><span class="section-label">Recommended next action</span><strong id="coachNextAction">Run /kanban to generate an ordered execution plan.</strong></div>
+            <code>/kanban</code>
+          </div>
+          <div id="boardSummary" class="board-summary" aria-label="Project progress">
+            <span><b id="boardOpenCount">0</b> open</span>
+            <span><b id="boardProgressCount">0</b> in progress</span>
+            <span><b id="boardBlockedCount">0</b> blocked</span>
+            <span><b id="boardDoneCount">0</b> done</span>
+          </div>
+          <div id="kanbanBoard" class="kanban-board">
+            <section class="kanban-column" data-status="backlog">
+              <header><span>Backlog</span><div><b data-count="backlog">0</b><button class="column-add-task" data-add-board-task="backlog" aria-label="Add task to Backlog">+</button></div></header>
+              <div class="kanban-cards" data-dropzone="backlog"></div>
+            </section>
+            <section class="kanban-column" data-status="next">
+              <header><span>Next</span><div><b data-count="next">0</b><button class="column-add-task" data-add-board-task="next" aria-label="Add task to Next">+</button></div></header>
+              <div class="kanban-cards" data-dropzone="next"></div>
+            </section>
+            <section class="kanban-column" data-status="in_progress">
+              <header><span>In progress</span><div><b data-count="in_progress">0</b><button class="column-add-task" data-add-board-task="in_progress" aria-label="Add task to In progress">+</button></div></header>
+              <div class="kanban-cards" data-dropzone="in_progress"></div>
+            </section>
+            <section class="kanban-column" data-status="blocked">
+              <header><span>Blocked</span><div><b data-count="blocked">0</b><button class="column-add-task" data-add-board-task="blocked" aria-label="Add task to Blocked">+</button></div></header>
+              <div class="kanban-cards" data-dropzone="blocked"></div>
+            </section>
+            <section class="kanban-column" data-status="done">
+              <header><span>Done</span><div><b data-count="done">0</b><button class="column-add-task" data-add-board-task="done" aria-label="Add task to Done">+</button></div></header>
+              <div class="kanban-cards" data-dropzone="done"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="projectSessionsPanel" class="project-panel hidden">
+          <div class="project-section-heading">
+            <div><span class="section-label">Project history</span><h2>Sessions that moved this project</h2></div>
+          </div>
+          <div id="projectSessionList" class="project-session-list"></div>
+        </section>
+
+        <section id="projectInsightsPanel" class="project-panel hidden">
+          <div class="project-section-heading">
+            <div><span class="section-label">Work intelligence</span><h2>What the project really took</h2></div>
+          </div>
+          <div id="projectInsightsGrid" class="project-insights-grid"></div>
+        </section>
       </section>
     </main>
   </div>
@@ -359,6 +464,7 @@
           <svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
         </button>
       </div>
+
       <div id="workItemList" class="work-item-list"></div>
       <form id="workItemForm" class="work-item-form">
         <select id="workItemType" aria-label="Work item type">
@@ -367,6 +473,32 @@
         <input id="workItemUrl" type="url" placeholder="https://.../_workitems/edit/12345" aria-label="Work item URL" required>
         <input id="workItemTitle" placeholder="Optional label" aria-label="Work item label" maxlength="200">
         <button class="button primary">Link work item</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="projectDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="projectDialogTitle">
+    <div class="dialog project-dialog">
+      <div class="dialog-title-row">
+        <div><span class="section-label">Goal-based work</span><h2 id="projectDialogTitle">Choose a project</h2></div>
+        <button type="button" id="closeProjectDialog" class="icon-button" aria-label="Close project dialog">
+          <svg viewBox="0 0 24 24"><path d="m6.4 5 5.6 5.6L17.6 5 19 6.4 13.4 12l5.6 5.6-1.4 1.4-5.6-5.6L6.4 19 5 17.6l5.6-5.6L5 6.4 6.4 5Z"/></svg>
+        </button>
+      </div>
+      <p id="projectDialogContext" class="muted">Link this session to one explicit goal.</p>
+      <div class="project-link-controls">
+        <label for="projectLinkSelect">Existing project</label>
+        <select id="projectLinkSelect"></select>
+        <button id="linkProjectButton" type="button" class="button secondary">Link session</button>
+        <button id="unlinkProjectButton" type="button" class="button quiet hidden">Move to Unassigned</button>
+      </div>
+      <div class="dialog-divider"><span>or create a project</span></div>
+      <form id="createProjectForm" class="create-project-form">
+        <label for="newProjectTitle">Project goal</label>
+        <input id="newProjectTitle" maxlength="120" placeholder="Example: Prepare v0.4 release" required>
+        <label for="newProjectDescription">What outcome defines success?</label>
+        <textarea id="newProjectDescription" rows="3" maxlength="1000" placeholder="Optional one-sentence description"></textarea>
+        <button class="button primary">Create and link session</button>
       </form>
     </div>
   </div>

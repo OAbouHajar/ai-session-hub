@@ -1,12 +1,12 @@
 {
   "name": "copilot-session-hub",
-  "description": "Persistent session continuity dashboard with wrap checkpoints for AI coding CLIs.",
-  "version": "0.3.3",
+  "description": "Local-first AI project management with explicit projects, wrap checkpoints, and measurable progress.",
+  "version": "0.3.4",
   "author": {
     "name": "AI Session Hub"
   },
   "license": "MIT",
-  "keywords": ["sessions", "continuity", "dashboard", "wrap"],
+  "keywords": ["sessions", "projects", "kanban", "continuity", "dashboard", "wrap"],
   "commands": "commands/",
   "skills": "skills/",
   "hooks": "hooks.json"

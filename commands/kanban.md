@@ -4,25 +4,26 @@ description: Build an ordered execution plan from unfinished work in the current
 
 Act as a practical delivery coach for the current Copilot session.
 
-1. Read the full substantive conversation, tool results, tests, corrections, and any todo state.
-2. Identify only work that is genuinely unfinished:
+1. Find the Session Hub session ID and base URL, then GET `{baseUrl}/api/sessions/{sessionId}`. If `projectId` is empty, stop and tell the user to run `/hub-project`; never infer a project from the repository.
+2. Read the full substantive conversation, tool results, tests, corrections, and any todo state.
+3. Identify only work that is genuinely unfinished:
    - Explicit user requests not yet completed.
    - Failed tests, validation, deployments, or commands that still need resolution.
    - Blockers or questions preventing completion.
    - Follow-ups the assistant explicitly promised but did not finish.
-3. Exclude:
+4. Exclude:
    - Work already implemented and verified.
    - Generic maintenance advice.
    - Optional enhancements the user did not request.
    - Repeated or overlapping tasks.
-4. Order the remaining tasks as an execution plan:
+5. Order the remaining tasks as an execution plan:
    - Dependencies first.
    - Small validation steps immediately after their implementation.
    - Each item must be actionable and concise.
    - Maximum 10 items.
-5. Set `nextAction` to the first task in that ordered plan.
-6. If nothing remains, set `nextAction` to `No pending action — this session is complete.` and use an empty `tasks` array.
-7. Find the Session Hub checkpoint endpoint from session-start context and POST:
+6. Set `nextAction` to the first task in that ordered plan.
+7. If nothing remains, set `nextAction` to `No pending action — this session is complete.` and use an empty `tasks` array.
+8. Find the Session Hub checkpoint endpoint from session-start context and POST:
 
 ```json
 {

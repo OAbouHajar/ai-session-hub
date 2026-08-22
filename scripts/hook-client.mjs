@@ -41,10 +41,16 @@ if (eventName === "sessionStart") {
     : body.updateJob?.state === "failed"
       ? ` The scheduled AI Session Hub update failed: ${body.updateJob.error} Tell the user once and direct them to the dashboard.`
       : "";
+  const projectContext = body.project
+    ? `This session belongs to the "${body.project.title}" project. Make the checkpoint describe how this session changed that project. `
+    : "This session is unassigned. Save its checkpoint independently and do not attach it to a project automatically. The user can run /hub-project to create or choose one. ";
   const context =
     `AI Session Hub is tracking this ${providerName(provider)} session. Session ID: ${body.sessionId}. ` +
     `Checkpoint endpoint: ${url}/api/sessions/${encodeURIComponent(body.sessionId)}/checkpoint. ` +
-    `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there.` +
+    `Dashboard: ${url}. When the user asks to wrap, checkpoint, pause, or hand off, save a structured checkpoint there. ` +
+    projectContext +
+    `Include unfinished work in tasks, verified completed work in completedTasks, ` +
+    `and a files array of {path,toolName} entries for files actually viewed, created, or edited.` +
     updateNotice +
     updateResult;
   process.stdout.write(JSON.stringify(sessionStartOutput(context)));

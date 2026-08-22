@@ -2,9 +2,9 @@
   <img src="assets/logo.png" alt="AI Session Hub — Remember. Resume. Continue." width="480">
 </p>
 
-<p align="center"><strong>Local-first continuity for AI coding sessions.</strong></p>
+<p align="center"><strong>Local-first AI project management built from your coding sessions.</strong></p>
 
-Find past work, understand where it stopped, and continue without reconstructing the conversation.
+Turn AI conversations into explicit projects with tasks, decisions, progress, effort, and a clear next action.
 
 <p align="center">
   <a href="https://oabouhajar.github.io/ai-session-hub/"><strong>Visit the website</strong></a>
@@ -24,8 +24,8 @@ Find past work, understand where it stopped, and continue without reconstructing
 |---|---|
 | Install AI Session Hub | [Quick start](#quick-start) |
 | Set up a specific AI CLI | [Provider guides](docs/providers/README.md) |
+| Manage sessions as goal-based projects | [Project workspace](#project-workspace) |
 | Understand wrapping and resume | [Daily workflow](#daily-workflow) |
-| Track work on a Kanban board | [Project board](#project-board) |
 | Check storage and privacy | [Data and privacy](#data-and-privacy) |
 | Upgrade or uninstall | [Maintenance](#maintenance) |
 | Develop or contribute | [Development](#development) |
@@ -34,7 +34,7 @@ Find past work, understand where it stopped, and continue without reconstructing
 
 | Question | Answer |
 |---|---|
-| What does it do? | Tracks AI CLI sessions and saves clear continuity checkpoints |
+| What does it do? | Turns AI CLI sessions into measurable, goal-based project work |
 | Where does it run? | Locally at `http://127.0.0.1:43120` |
 | Where is data stored? | In a local SQLite database |
 | Does it upload sessions? | No |
@@ -45,12 +45,13 @@ Find past work, understand where it stopped, and continue without reconstructing
 ## What you get
 
 - Automatic lifecycle tracking for supported AI CLIs.
+- Explicit projects that can combine related sessions without grouping unrelated work from the same repository.
+- Project overview, Kanban board, session history, progress, time, effort, and AI usage.
 - Search across tasks, summaries, actions, projects, folders, and files.
-- Clear **where you left off** and **continue from here** views.
+- Clear current state, completed work, blockers, and recommended next action.
 - Structured wrap checkpoints and next-session todo lists.
 - Provider-specific resume commands.
 - In-app **Info** panel with the installed version, provider configuration, update status, release notes, and GitHub links.
-- Optional Kanban project tracking.
 - Local-only storage with safe upgrades.
 
 ## Quick start
@@ -110,11 +111,13 @@ AI Session Hub uses documented lifecycle hooks rather than unstable provider tra
 ## Daily workflow
 
 1. Start or resume a supported AI CLI session.
-2. Work normally while AI Session Hub tracks lifecycle events.
-3. Before leaving, ask the assistant to **wrap this session** or **checkpoint this session**.
-4. Later, search the dashboard for the task, project, folder, action, or file you remember.
-5. Review the saved stopping point and next action.
-6. Resume from the dashboard.
+2. Run `/hub-project` when the session belongs to a larger goal; create a project or explicitly link it to one.
+3. Work normally while AI Session Hub tracks lifecycle events.
+4. Before leaving, ask the assistant to **wrap this session** or **checkpoint this session**.
+5. Review project progress, tasks, effort, blockers, and the recommended next action in the dashboard.
+6. Resume the right session when you are ready to continue.
+
+Sessions remain **Unassigned** until you choose a project. Repository and folder matches may be suggested, but AI Session Hub never merges sessions automatically.
 
 Copilot also includes:
 
@@ -123,14 +126,23 @@ Copilot also includes:
 | `/wrap` | Save a continuity checkpoint |
 | `/wrap-with-next` | Save a checkpoint with an explicit todo list |
 | `/unwrap` | Remove a session from Wrapped while preserving its saved data |
+| `/hub-project` | Create, link, switch, inspect, unlink, or complete an explicit project |
 | `/hub-update` | Download, verify, and install the latest stable release automatically |
 | `/kanban` | Build an ordered plan from unfinished work |
 | `/kanban-update` | Reconcile board state with actual progress |
 | `/kanban-process` | Execute the next actionable board task |
 
-## Project board
+## Project workspace
 
-Track any session as a project to organize tasks into **Backlog**, **Next**, **In progress**, **Blocked**, and **Done**. Add tasks directly to a column, drag them between states, or let the Kanban commands reconcile progress.
+Create projects around goals—not repositories. One repository can have separate projects for a release, a feature, an investigation, or any other workstream. Each session belongs to at most one primary project and can be moved or returned to Unassigned at any time.
+
+The project workspace combines:
+
+- A concise overview of current state, next action, blockers, and progress.
+- A Kanban board with **Backlog**, **Next**, **In progress**, **Blocked**, and **Done**.
+- Every explicitly linked session and its file evidence.
+- Time, AI credits, effort, and completion insights.
+- Project-level Azure DevOps work-item links.
 
 ![AI Session Hub Board view](screenshots/board-screenshot.png)
 

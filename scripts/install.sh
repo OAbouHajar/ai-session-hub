@@ -120,9 +120,25 @@ node "$INSTALL_ROOT/scripts/provider-hooks.mjs" install "$INSTALL_ROOT"
 
 if command -v copilot >/dev/null 2>&1; then
   copilot plugin uninstall copilot-session-hub >/dev/null 2>&1 || true
+  copilot plugin marketplace remove ai-session-hub >/dev/null 2>&1 || true
+  MARKETPLACE_READY=false
+  for _ in {1..3}; do
+    if copilot plugin marketplace add "$INSTALL_ROOT" >/dev/null 2>&1; then
+      MARKETPLACE_READY=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$MARKETPLACE_READY" != true ]]; then
+    start_service
+    echo "AI Session Hub was updated, but its verified local Copilot plugin marketplace could not be registered." >&2
+    echo "Exit active Copilot CLI sessions and rerun this installer." >&2
+    exit 1
+  fi
+
   PLUGIN_INSTALLED=false
   for _ in {1..5}; do
-    if INSTALL_OUTPUT="$(copilot plugin install "$INSTALL_ROOT" 2>&1)"; then
+    if INSTALL_OUTPUT="$(copilot plugin install copilot-session-hub@ai-session-hub 2>&1)"; then
       PLUGIN_INSTALLED=true
       break
     fi

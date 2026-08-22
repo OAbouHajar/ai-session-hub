@@ -27,13 +27,13 @@ pwsh -File .\scripts\install.ps1
 The installer:
 
 1. Copies the application into the platform installation directory.
-2. Installs or refreshes the `copilot-session-hub` plugin.
+2. Registers the installed, version-matched `ai-session-hub` marketplace and installs or refreshes `copilot-session-hub@ai-session-hub`.
 3. Starts AI Session Hub at `http://127.0.0.1:43120`.
 4. Preserves the existing Session Hub database.
 
 Restart any Copilot CLI sessions that were open during installation. A new or restarted session loads the plugin hooks and slash commands.
 
-Direct plugin installation may show a marketplace deprecation warning. It is informational while the plugin installation still succeeds.
+The marketplace-based installation uses Copilot CLI's supported plugin distribution mechanism and does not rely on deprecated direct local-path installation.
 
 ## Verify
 

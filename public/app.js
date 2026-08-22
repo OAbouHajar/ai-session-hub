@@ -5,9 +5,14 @@ const state = {
   filter: "wrapped",
   query: "",
   editField: null,
-  view: localStorage.getItem("sessionHub.view") || "sessions",
+  view: localStorage.getItem("sessionHub.projectFirstView") || "board",
+  projectTab: localStorage.getItem("sessionHub.projectTab") || "overview",
   projects: [],
   selectedProjectId: localStorage.getItem("sessionHub.projectId"),
+  board: null,
+  projectDialogSessionId: "",
+  workItemTarget: "session",
+  unassignedCount: 0,
   commandIndex: 0,
   update: null,
   updateJob: null,
@@ -19,7 +24,7 @@ const sessionHubCommands = [
   {
     command: "/wrap",
     title: "Wrap this session",
-    description: "Save where you stopped, the real next action, and unfinished checklist items."
+    description: "Update the project outcome, completed work, unfinished tasks, and recommended next action."
   },
   {
     command: "/wrap-with-next",
@@ -35,6 +40,11 @@ const sessionHubCommands = [
     command: "/hub-update",
     title: "Update Session Hub automatically",
     description: "Download and verify the latest stable release, then install it automatically after this AI CLI exits."
+  },
+  {
+    command: "/hub-project",
+    title: "Manage this session's project",
+    description: "Create, link, switch, inspect, unlink, or complete an explicit goal-based project."
   },
   {
     command: "/kanban",
@@ -105,6 +115,8 @@ async function refresh({ preserveSelection = true } = {}) {
   elements.wrappedCount.textContent = stats.wrapped || 0;
   elements.activeCount.textContent = stats.active || 0;
   elements.pausedCount.textContent = stats.paused || 0;
+  elements.unassignedCount.textContent = stats.unassigned || 0;
+  state.unassignedCount = stats.unassigned || 0;
   renderSessionList();
   const hasSelected = preserveSelection && sessions.some((session) => session.id === state.selectedId);
   const nextId = hasSelected ? state.selectedId : sessions[0]?.id;
@@ -228,6 +240,7 @@ function bindEvents() {
     if (event.key === "Escape") {
       closeDialog();
       closeWorkItemDialog();
+      closeProjectDialog();
       closeCommandPalette();
       closeInfoPanel();
       closeSidebar();
@@ -243,12 +256,13 @@ function bindEvents() {
   });
   elements.taskForm.addEventListener("submit", addTask);
   elements.workItemForm.addEventListener("submit", addWorkItem);
-  elements.linkWorkItemButton.addEventListener("click", openWorkItemDialog);
+  elements.linkWorkItemButton.addEventListener("click", () => openWorkItemDialog("session"));
+  elements.linkProjectWorkItemButton.addEventListener("click", () => openWorkItemDialog("project"));
   elements.closeWorkItemDialog.addEventListener("click", closeWorkItemDialog);
   elements.workItemDialog.addEventListener("click", (event) => {
     if (event.target === elements.workItemDialog) closeWorkItemDialog();
   });
-  elements.trackProjectButton.addEventListener("click", toggleProjectTracking);
+  elements.trackProjectButton.addEventListener("click", openSelectedProject);
   elements.mobileMenu.addEventListener("click", openSidebar);
   elements.closeSidebar.addEventListener("click", closeSidebar);
   elements.sidebarBackdrop.addEventListener("click", closeSidebar);
@@ -264,17 +278,29 @@ function bindEvents() {
   elements.commandPalette.addEventListener("click", (event) => {
     if (event.target === elements.commandPalette) closeCommandPalette();
   });
-  elements.projectSelect.addEventListener("change", async () => {
-    state.selectedProjectId = elements.projectSelect.value;
-    localStorage.setItem("sessionHub.projectId", state.selectedProjectId);
-    await refreshBoard();
-  });
   elements.openProjectButton.addEventListener("click", async () => {
-    if (!state.selectedProjectId) return;
+    const sessionId = state.board?.projectState?.id || state.board?.sessions?.[0]?.id;
+    if (!sessionId) return;
     state.view = "sessions";
-    localStorage.setItem("sessionHub.view", "sessions");
-    await selectSession(state.selectedProjectId);
+    localStorage.setItem("sessionHub.projectFirstView", "sessions");
+    await selectSession(sessionId);
     applyView();
+  });
+  elements.createProjectButton.addEventListener("click", () => openProjectDialog());
+  elements.closeProjectDialog.addEventListener("click", closeProjectDialog);
+  elements.projectDialog.addEventListener("click", (event) => {
+    if (event.target === elements.projectDialog) closeProjectDialog();
+  });
+  elements.createProjectForm.addEventListener("submit", createProjectFromDialog);
+  elements.linkProjectButton.addEventListener("click", linkProjectFromDialog);
+  elements.unlinkProjectButton.addEventListener("click", unlinkProjectFromDialog);
+  elements.startProjectAction.addEventListener("click", openProjectNextSession);
+  elements.openLatestProjectSession.addEventListener("click", openProjectLatestSession);
+  document.querySelectorAll("[data-project-tab]").forEach((button) => {
+    button.addEventListener("click", () => setProjectTab(button.dataset.projectTab));
+  });
+  document.querySelectorAll("[data-show-project-tab]").forEach((button) => {
+    button.addEventListener("click", () => setProjectTab(button.dataset.showProjectTab));
   });
   document.querySelectorAll("[data-add-board-task]").forEach((button) => {
     button.addEventListener("click", () => openBoardTaskForm(button.dataset.addBoardTask, button));
@@ -282,7 +308,7 @@ function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", async () => {
       state.view = button.dataset.view;
-      localStorage.setItem("sessionHub.view", state.view);
+      localStorage.setItem("sessionHub.projectFirstView", state.view);
       if (state.view === "board") {
         state.query = "";
         elements.searchInput.value = "";
@@ -458,7 +484,7 @@ function renderSessionList() {
     const context = element(
       "span",
       "session-context-line",
-      session.isProject ? `Project · ${provider} · ${workspace}` : `${provider} · ${workspace}`
+      `${session.projectId ? "Project session" : "Unassigned"} · ${provider} · ${workspace}`
     );
     const visibleMatch = session.searchMatch && session.searchMatch.type !== "title";
     const previewText = visibleMatch
@@ -502,7 +528,8 @@ function renderDetail() {
   elements.providerBadge.textContent = session.providerName || "AI CLI";
   elements.providerBadge.dataset.provider = session.provider || "";
   elements.updatedLabel.textContent = `Updated ${relativeTime(session.updatedAt)}`;
-  elements.projectBadge.classList.toggle("hidden", !session.isProject);
+  elements.projectBadge.classList.remove("hidden");
+  elements.projectBadge.textContent = session.project ? `Project: ${session.project.title}` : "Unassigned";
   elements.importedBadge.classList.toggle("hidden", !session.imported);
   elements.reviewBadge.classList.toggle("hidden", !session.needsReview);
   elements.nextAction.textContent = session.nextAction || "Run /wrap to create a recommended next step.";
@@ -515,22 +542,22 @@ function renderDetail() {
   elements.sessionIdChip.setAttribute("aria-label", `Copy ${session.providerName || "AI CLI"} resume command`);
   elements.sessionDuration.textContent = formatDuration(session.startedAt, session.endedAt || Date.now());
   renderSessionMetrics(session.metrics);
-  elements.trackProjectButton.classList.toggle("tracked", session.isProject);
-  elements.trackProjectButton.querySelector("span").textContent = session.isProject ? "Stop tracking project" : "Track as project";
+  elements.trackProjectButton.classList.toggle("tracked", Boolean(session.project));
+  elements.trackProjectButton.querySelector("span").textContent = session.project ? "Open project workspace" : "Add to project";
   renderFiles();
   renderTasks();
   renderWorkItems();
   renderTimeline();
   const pinButton = elements.moreMenu.querySelector('[data-action="pin"]');
   pinButton.textContent = session.pinned ? "Unpin session" : "Pin session";
-  const trackButton = elements.moreMenu.querySelector('[data-action="track-project"]');
-  trackButton.textContent = session.isProject ? "Stop tracking project" : "Track as project";
   const archiveButton = elements.moreMenu.querySelector('[data-action="archive"]');
   archiveButton.textContent = session.archived ? "Restore session" : "Archive session";
 }
 
 function renderFiles() {
   const files = state.selected.files || [];
+  elements.filesSection.classList.toggle("hidden", !files.length);
+  if (!files.length) return;
   const status = state.selected.fileHistoryStatus || "unavailable";
   const messages = {
     current: `${state.selected.fileCount || files.length} recorded`,
@@ -551,12 +578,7 @@ function renderFiles() {
     );
     elements.fileList.append(item);
   }
-  if (!files.length) {
-    const text = status === "empty"
-      ? `${state.selected.providerName || "The AI CLI"} did not record any worked-on files for this session.`
-      : "File evidence is not available yet. The checkpoint summary is still usable.";
-    elements.fileList.append(element("li", "empty-copy", text));
-  } else if (state.selected.filesTruncated) {
+  if (state.selected.filesTruncated) {
     elements.fileList.append(element("li", "empty-copy", `Showing the first ${files.length} files.`));
   }
 }
@@ -591,7 +613,6 @@ function renderTasks() {
 
 function renderWorkItems() {
   const workItems = state.selected.workItems || [];
-  elements.workItemList.replaceChildren();
   elements.headerWorkItems.replaceChildren();
   for (const item of workItems) {
     const headerLink = element("a", "header-work-item", `${item.type} #${item.workItemId}`);
@@ -600,6 +621,27 @@ function renderWorkItems() {
     headerLink.rel = "noreferrer";
     headerLink.title = item.title || `Work item ${item.workItemId}`;
     elements.headerWorkItems.append(headerLink);
+  }
+  if (state.workItemTarget === "session" || elements.workItemDialog.classList.contains("hidden")) {
+    renderWorkItemDialog(workItems);
+  }
+}
+
+function renderProjectWorkItems(workItems) {
+  elements.projectWorkItems.replaceChildren();
+  for (const item of workItems) {
+    const link = element("a", "project-work-item", `${item.type} #${item.workItemId}`);
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.title = item.title || `Work item ${item.workItemId}`;
+    elements.projectWorkItems.append(link);
+  }
+}
+
+function renderWorkItemDialog(workItems) {
+  elements.workItemList.replaceChildren();
+  for (const item of workItems) {
     const row = element("div", "work-item");
     row.append(element("span", "work-item-type", item.type));
     const link = document.createElement("a");
@@ -612,7 +654,12 @@ function renderWorkItems() {
     remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 7h10l-1 14H8L7 7Zm2-4h6l1 2h4v2H4V5h4l1-2Z"/></svg>';
     remove.addEventListener("click", async () => {
       await api(`/api/work-items/${item.id}`, { method: "DELETE" });
-      await selectSession(state.selectedId);
+      if (state.workItemTarget === "project") {
+        await refreshBoard();
+        renderWorkItemDialog(state.board?.workItems || []);
+      } else {
+        await selectSession(state.selectedId);
+      }
     });
     row.append(link, remove);
     elements.workItemList.append(row);
@@ -622,8 +669,11 @@ function renderWorkItems() {
   }
 }
 
-function openWorkItemDialog() {
-  if (!state.selected) return;
+function openWorkItemDialog(target) {
+  if (target === "project" ? !state.selectedProjectId : !state.selected) return;
+  state.workItemTarget = target;
+  elements.workItemDialogTitle.textContent = target === "project" ? "Project work items" : "Linked work items";
+  renderWorkItemDialog(target === "project" ? state.board?.workItems || [] : state.selected.workItems || []);
   modalReturnFocus = document.activeElement;
   elements.workItemDialog.classList.remove("hidden");
   elements.workItemUrl.focus();
@@ -696,12 +746,14 @@ function applyView() {
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
   elements.boardView.classList.toggle("hidden", !boardActive);
-  elements.topActions.classList.toggle("hidden", boardActive);
-  elements.topbarLabel.textContent = boardActive ? "Projects" : "Session details";
-  elements.topbarDetail.textContent = boardActive ? "A secondary delivery workspace" : "What happened and where to continue";
+  elements.topActions.classList.remove("hidden");
+  elements.moreButton.classList.toggle("hidden", boardActive);
+  if (boardActive) elements.moreMenu.classList.add("hidden");
+  elements.topbarLabel.textContent = boardActive ? "Project workspace" : "Session details";
+  elements.topbarDetail.textContent = boardActive ? "Where the work stands and what happens next" : "The work behind this project";
   document.querySelector(".sidebar").classList.toggle("board-mode", boardActive);
-  elements.sidebarHeadingLabel.textContent = boardActive ? "Tracked projects" : "Recent work";
-  elements.searchInput.placeholder = boardActive ? "Search tracked projects" : "Task, project, folder, or file";
+  elements.sidebarHeadingLabel.textContent = boardActive ? "Projects" : "Project sessions";
+  elements.searchInput.placeholder = boardActive ? "Search projects" : "Task, project, folder, or file";
   elements.statusFilters.classList.toggle("hidden", boardActive || searching);
   if (searching && !boardActive) elements.sidebarHeadingLabel.textContent = "Search results across all history";
   if (boardActive) {
@@ -721,49 +773,37 @@ async function refreshBoard() {
   state.projects = await api("/api/projects");
   const preferred = state.projects.some((project) => project.id === state.selectedProjectId)
     ? state.selectedProjectId
-    : (state.selected?.isProject && state.projects.some((project) => project.id === state.selected.id)
-      ? state.selected.id
+    : (state.selected?.projectId && state.projects.some((project) => project.id === state.selected.projectId)
+      ? state.selected.projectId
       : state.projects[0]?.id);
   state.selectedProjectId = preferred || "";
   if (state.selectedProjectId) localStorage.setItem("sessionHub.projectId", state.selectedProjectId);
-  elements.projectSelect.replaceChildren();
-  state.projects.forEach((project) => {
-    const option = document.createElement("option");
-    option.value = project.id;
-    option.textContent = `${project.title} · ${project.openTaskCount} open`;
-    option.selected = project.id === state.selectedProjectId;
-    elements.projectSelect.append(option);
-  });
   renderProjectList();
   const hasProject = Boolean(state.selectedProjectId);
   elements.noProjects.classList.toggle("hidden", hasProject);
-  elements.coachStrip.classList.toggle("hidden", !hasProject);
-  elements.projectSelect.disabled = !hasProject;
+  elements.projectTabs.classList.toggle("hidden", !hasProject);
+  elements.projectWorkspaceTitle.textContent = hasProject ? "Loading project…" : "Your projects";
+  elements.projectWorkspaceSummary.textContent = hasProject
+    ? "Collecting the latest wrapped session state."
+    : "Create an explicit goal here or run /hub-project from an AI session.";
   elements.openProjectButton.disabled = !hasProject;
-  elements.boardSummary.classList.toggle("hidden", !hasProject);
-  elements.kanbanBoard.classList.toggle("hidden", !hasProject);
-  elements.boardWorkItems.replaceChildren();
-  if (!hasProject) return;
+  elements.linkProjectWorkItemButton.disabled = !hasProject;
+  elements.projectWorkItems.replaceChildren();
+  if (!hasProject) {
+    state.board = null;
+    document.querySelectorAll(".project-panel").forEach((panel) => panel.classList.add("hidden"));
+    return;
+  }
 
-  const board = await api(`/api/board?sessionId=${encodeURIComponent(state.selectedProjectId)}`);
+  const board = await api(`/api/board?projectId=${encodeURIComponent(state.selectedProjectId)}`);
+  state.board = board;
+  renderProjectWorkspace(board);
   elements.coachStrip.classList.remove("hidden");
-  elements.coachNextAction.textContent = board.project.nextAction || "Run /kanban to generate an ordered execution plan.";
+  elements.coachNextAction.textContent = board.projectState?.nextAction || board.project.nextAction || "Run /kanban to generate an ordered execution plan.";
   elements.boardOpenCount.textContent = board.total - (board.counts.done || 0);
   elements.boardProgressCount.textContent = board.counts.in_progress || 0;
   elements.boardBlockedCount.textContent = board.counts.blocked || 0;
   elements.boardDoneCount.textContent = board.counts.done || 0;
-  for (const item of board.workItems || []) {
-    const link = element("a", "board-work-item", `${item.type} #${item.workItemId}`);
-    link.href = item.url;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.title = item.title || `Work item ${item.workItemId}`;
-    elements.boardWorkItems.append(link);
-  }
-
-  if (!board.workItems?.length) {
-    elements.boardWorkItems.append(element("span", "muted", "No work items linked"));
-  }
   for (const status of ["backlog", "next", "in_progress", "blocked", "done"]) {
     const count = board.counts[status] || 0;
     document.querySelector(`[data-count="${status}"]`).textContent = count;
@@ -773,6 +813,162 @@ async function refreshBoard() {
     tasks.forEach((task) => container.append(renderBoardCard(task)));
     if (!tasks.length) container.append(element("p", "board-empty", "Drop an item here"));
   }
+  applyProjectTab();
+}
+
+function setProjectTab(tab) {
+  if (!["overview", "board", "sessions", "insights"].includes(tab)) return;
+  state.projectTab = tab;
+  localStorage.setItem("sessionHub.projectTab", tab);
+  applyProjectTab();
+}
+
+function applyProjectTab() {
+  if (!state.board) return;
+  document.querySelectorAll("[data-project-tab]").forEach((button) => {
+    const active = button.dataset.projectTab === state.projectTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+  const panels = {
+    overview: elements.projectOverviewPanel,
+    board: elements.projectBoardPanel,
+    sessions: elements.projectSessionsPanel,
+    insights: elements.projectInsightsPanel
+  };
+  Object.entries(panels).forEach(([name, panel]) => panel.classList.toggle("hidden", name !== state.projectTab));
+}
+
+function renderProjectWorkspace(board) {
+  const project = board.project;
+  const projectState = board.projectState || project;
+  const sessions = board.sessions || [project];
+  const completed = board.tasks.filter((task) => task.status === "done");
+  const inProgress = board.tasks.find((task) => task.status === "in_progress");
+  const blocked = board.tasks.find((task) => task.status === "blocked");
+  const nextTasks = board.tasks.filter((task) => ["next", "in_progress"].includes(task.status)).slice(0, 4);
+  const progress = board.total ? Math.round(((board.counts.done || 0) / board.total) * 100) : 0;
+  const latestSession = projectState;
+  const duration = sessions.reduce((total, session) => total + sessionDurationMs(session), 0);
+  const credits = sessions.reduce((total, session) => total + Number(session.metrics?.aiCredits || 0), 0);
+  const fileCount = sessions.reduce((total, session) => total + Number(session.fileCount || 0), 0);
+
+  elements.projectWorkspaceTitle.textContent = projectName(project);
+  elements.projectWorkspaceSummary.textContent = project.summary || "Add a clear success outcome for this project.";
+  elements.projectUpdatedLabel.textContent = `Updated ${relativeTime(projectState?.updatedAt || project.updatedAt)}`;
+  elements.projectWorkspaceMeta.replaceChildren(
+    projectMetaChip("sessions", `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}`),
+    projectMetaChip("branch", projectState?.branch || "No branch"),
+    projectMetaChip("folder", basename(project.repository) || basename(project.cwd) || "Local workspace")
+  );
+  renderProjectWorkItems(board.workItems || []);
+  elements.projectStatusLabel.textContent = board.counts.blocked
+    ? "Needs attention"
+    : project.status === "complete" || (board.total > 0 && board.counts.done === board.total)
+      ? "Complete"
+      : "In progress";
+  elements.openProjectButton.disabled = !sessions.length;
+  elements.startProjectAction.disabled = !sessions.length;
+  elements.projectNextAction.textContent = projectState?.nextAction || nextTasks[0]?.text || "No pending action — this project is complete.";
+  elements.projectNextContext.textContent = projectState
+    ? `From ${projectState.title} · ${relativeTime(projectState.updatedAt)}`
+    : "Run /wrap to establish the next project action.";
+  elements.projectLastCompleted.textContent = completed[0]?.text || projectState?.lastAction || "No completed work recorded yet.";
+  elements.projectCurrentWork.textContent = inProgress?.text || nextTasks[0]?.text || "No task is in progress.";
+  elements.projectBlockedWork.textContent = blocked?.text || projectState?.unresolved?.[0] || "No blockers recorded.";
+  elements.projectNextTasks.replaceChildren();
+  nextTasks.forEach((task) => {
+    const row = element("button", "project-next-task");
+    row.type = "button";
+    row.append(
+      element("span", `project-task-status ${task.status}`, boardStatusLabels[task.status]),
+      element("strong", "", task.text),
+      element("small", "", task.sessionTitle)
+    );
+    row.addEventListener("click", () => setProjectTab("board"));
+    elements.projectNextTasks.append(row);
+  });
+  if (!nextTasks.length) {
+    const empty = element("div", "project-empty-tasks");
+    empty.append(
+      element("span", "project-empty-icon", "✓"),
+      element("strong", "", "No open next tasks"),
+      element("small", "", "Run /wrap when new work is discovered.")
+    );
+    elements.projectNextTasks.append(empty);
+  }
+
+  elements.projectProgressLabel.textContent = `${progress}%`;
+  elements.projectProgressValue.textContent = `${progress}%`;
+  elements.projectProgressDetail.textContent = board.total ? `${board.counts.done || 0} of ${board.total} tasks` : "No tasks yet";
+  elements.projectProgressRing.style.setProperty("--progress", progress);
+  elements.projectProgressBar.style.width = `${progress}%`;
+  elements.projectProgressLegend.textContent = `${board.counts.done || 0} done · ${board.total - (board.counts.done || 0)} open`;
+  elements.projectEffortTime.textContent = duration ? formatMilliseconds(duration) : "—";
+  elements.projectEffortCredits.textContent = credits ? formatCredits(credits) : "—";
+  elements.projectEffortSessions.textContent = sessions.length;
+  elements.projectEffortFiles.textContent = fileCount;
+  elements.projectLatestSessionTitle.textContent = latestSession?.title || "No wrapped session yet";
+  elements.projectLatestSessionSummary.textContent = latestSession?.summary || "Run /wrap to connect session outcomes to this project.";
+  elements.projectBoardTabCount.textContent = board.total;
+  elements.projectSessionTabCount.textContent = sessions.length;
+  renderProjectSessions(sessions);
+  renderProjectInsights({ sessions, duration, credits, files: fileCount, board, progress });
+}
+
+function renderProjectSessions(sessions) {
+  elements.projectSessionList.replaceChildren();
+  sessions.forEach((session) => {
+    const row = element("button", "project-session-row");
+    row.type = "button";
+    row.append(
+      element("strong", "", session.title),
+      element("span", "", session.summary || session.lastAction || "No checkpoint summary"),
+      element("span", "", formatDuration(session.startedAt, session.endedAt || session.updatedAt)),
+      element("em", session.needsReview ? "needs-wrap" : "", session.needsReview ? "Needs wrap" : "Wrapped")
+    );
+    row.addEventListener("click", async () => {
+      state.view = "sessions";
+      localStorage.setItem("sessionHub.projectFirstView", "sessions");
+      await selectSession(session.id);
+      applyView();
+    });
+    elements.projectSessionList.append(row);
+  });
+}
+
+function renderProjectInsights({ sessions, duration, credits, files, board, progress }) {
+  elements.projectInsightsGrid.replaceChildren();
+  const metrics = [
+    ["Total effort", duration ? formatMilliseconds(duration) : "—", `Across ${sessions.length} sessions`],
+    ["Completion", `${progress}%`, `${board.counts.done || 0} of ${board.total} tasks`],
+    ["Average session", duration && sessions.length ? formatMilliseconds(duration / sessions.length) : "—", "Focused project time"],
+    ["AI credits", credits ? formatCredits(credits) : "—", `${files} files recorded`]
+  ];
+  metrics.forEach(([label, value, detail]) => {
+    const card = element("article", "project-insight");
+    card.append(element("span", "", label), element("strong", "", value), element("small", "", detail));
+    elements.projectInsightsGrid.append(card);
+  });
+}
+
+async function openProjectNextSession() {
+  const task = state.board?.tasks.find((item) => ["in_progress", "next"].includes(item.status));
+  const sessionId = task?.sessionId || state.board?.projectState?.id || state.selectedProjectId;
+  if (!sessionId) return;
+  state.view = "sessions";
+  localStorage.setItem("sessionHub.projectFirstView", "sessions");
+  await selectSession(sessionId);
+  applyView();
+}
+
+async function openProjectLatestSession() {
+  const sessionId = state.board?.sessions?.[0]?.id || state.selectedProjectId;
+  if (!sessionId) return;
+  state.view = "sessions";
+  localStorage.setItem("sessionHub.projectFirstView", "sessions");
+  await selectSession(sessionId);
+  applyView();
 }
 
 function logLevel(type) {
@@ -797,14 +993,37 @@ function renderProjectList() {
       .some((value) => String(value || "").toLowerCase().includes(query));
   });
   elements.sessionList.replaceChildren();
+  if (state.unassignedCount) {
+    const inbox = document.createElement("button");
+    inbox.className = "session-item project-inbox";
+    const copy = element("span", "session-copy");
+    copy.append(
+      element("strong", "", "Unassigned sessions"),
+      element("span", "", `${state.unassignedCount} waiting for your choice`)
+    );
+    inbox.append(copy, element("span", "session-time", "Inbox"));
+    inbox.addEventListener("click", async () => {
+      state.view = "sessions";
+      state.filter = "unassigned";
+      localStorage.setItem("sessionHub.projectFirstView", "sessions");
+      document.querySelectorAll(".filter").forEach((button) => {
+        const active = button.dataset.filter === "unassigned";
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      await refresh({ preserveSelection: false });
+      closeSidebar();
+    });
+    elements.sessionList.append(inbox);
+  }
   for (const project of projects) {
     const button = document.createElement("button");
     button.className = `session-item${project.id === state.selectedProjectId ? " selected" : ""}`;
     button.dataset.id = project.id;
     const copy = element("span", "session-copy");
     copy.append(
-      element("strong", "", project.title),
-      element("span", "", `${project.openTaskCount} open · ${project.workItemCount} work items`)
+      element("strong", "", projectName(project)),
+      element("span", "", `${project.sessionCount || 1} sessions · ${project.openTaskCount} open`)
     );
     const time = element("span", "session-time", relativeTime(project.updatedAt));
     button.append(copy, time);
@@ -816,7 +1035,7 @@ function renderProjectList() {
     });
     elements.sessionList.append(button);
   }
-  if (!projects.length) {
+  if (!projects.length && !state.unassignedCount) {
     elements.sessionList.append(element("p", "empty-copy", state.projects.length ? "No projects match your search." : "No sessions are tracked as projects yet."));
   }
 }
@@ -840,7 +1059,7 @@ function renderBoardCard(task) {
   open.innerHTML = '<svg viewBox="0 0 24 24"><path d="m13 5 7 7-7 7-1.4-1.4 4.6-4.6H4v-2h12.2l-4.6-4.6L13 5Z"/></svg>';
   open.addEventListener("click", async () => {
     state.view = "sessions";
-    localStorage.setItem("sessionHub.view", "sessions");
+    localStorage.setItem("sessionHub.projectFirstView", "sessions");
     await selectSession(task.sessionId);
     applyView();
   });
@@ -906,7 +1125,7 @@ function openBoardTaskForm(status, trigger) {
     const text = input.value.trim();
     if (!text) return;
     submit.disabled = true;
-    await api(`/api/sessions/${encodeURIComponent(state.selectedProjectId)}/tasks`, {
+    await api(`/api/projects/${encodeURIComponent(state.selectedProjectId)}/tasks`, {
       method: "POST",
       body: { text, status }
     });
@@ -969,7 +1188,7 @@ async function action(name) {
   }
   if (!state.selected) return;
   if (name === "track-project") {
-    await toggleProjectTracking();
+    await openSelectedProject();
   } else if (name === "pin") {
     await api(`/api/sessions/${encodeURIComponent(state.selected.id)}`, { method: "PATCH", body: { pinned: !state.selected.pinned } });
     toast(state.selected.pinned ? "Session unpinned" : "Session pinned");
@@ -984,19 +1203,107 @@ async function action(name) {
   }
 }
 
-async function toggleProjectTracking() {
+async function openSelectedProject() {
   if (!state.selected) return;
-  const nextValue = !state.selected.isProject;
-  await api(`/api/sessions/${encodeURIComponent(state.selected.id)}`, {
-    method: "PATCH",
-    body: { isProject: nextValue }
-  });
-  if (nextValue) {
-    state.selectedProjectId = state.selected.id;
-    localStorage.setItem("sessionHub.projectId", state.selected.id);
+  if (!state.selected.projectId) {
+    await openProjectDialog(state.selected.id);
+    return;
   }
-  toast(nextValue ? "Session is now a tracked project" : "Project tracking removed");
-  await refresh();
+  state.selectedProjectId = state.selected.projectId;
+  localStorage.setItem("sessionHub.projectId", state.selected.projectId);
+  state.view = "board";
+  localStorage.setItem("sessionHub.projectFirstView", "board");
+  await refreshBoard();
+  applyView();
+}
+
+async function openProjectDialog(sessionId = "") {
+  modalReturnFocus = document.activeElement;
+  state.projectDialogSessionId = sessionId;
+  const session = sessionId
+    ? (state.selected?.id === sessionId ? state.selected : await api(`/api/sessions/${encodeURIComponent(sessionId)}`))
+    : null;
+  const projects = session
+    ? await api(`/api/project-suggestions?sessionId=${encodeURIComponent(session.id)}`)
+    : await api("/api/projects");
+  elements.projectDialogTitle.textContent = session ? "Choose a project" : "Create a project";
+  elements.projectDialogContext.textContent = session
+    ? `${session.title} can belong to one goal-based project. Choosing another project moves it.`
+    : "Create a goal-based workstream. You can add sessions afterward.";
+  document.querySelector(".project-link-controls").classList.toggle("hidden", !session);
+  elements.projectLinkSelect.replaceChildren();
+  projects.forEach((project) => {
+    const option = document.createElement("option");
+    option.value = project.id;
+    option.textContent = `${project.suggested ? `${project.suggestionReason} · ` : ""}${project.title}`;
+    option.selected = project.id === session?.projectId;
+    elements.projectLinkSelect.append(option);
+  });
+  elements.projectLinkSelect.disabled = !projects.length;
+  elements.linkProjectButton.disabled = !projects.length;
+  elements.linkProjectButton.textContent = session?.projectId ? "Move session" : "Link session";
+  elements.unlinkProjectButton.classList.toggle("hidden", !session?.projectId);
+  elements.newProjectTitle.value = "";
+  elements.newProjectDescription.value = "";
+  elements.projectDialog.classList.remove("hidden");
+  (session && projects.length ? elements.projectLinkSelect : elements.newProjectTitle).focus();
+}
+
+function closeProjectDialog() {
+  const wasOpen = !elements.projectDialog.classList.contains("hidden");
+  elements.projectDialog.classList.add("hidden");
+  state.projectDialogSessionId = "";
+  if (wasOpen) modalReturnFocus?.focus();
+}
+
+async function createProjectFromDialog(event) {
+  event.preventDefault();
+  const project = await api("/api/projects", {
+    method: "POST",
+    body: {
+      title: elements.newProjectTitle.value,
+      description: elements.newProjectDescription.value,
+      sessionId: state.projectDialogSessionId || undefined
+    }
+  });
+  state.selectedProjectId = project.id;
+  localStorage.setItem("sessionHub.projectId", project.id);
+  closeProjectDialog();
+  state.view = "board";
+  localStorage.setItem("sessionHub.projectFirstView", "board");
+  await refreshBoard();
+  applyView();
+  toast(`Created ${project.title}`);
+}
+
+async function linkProjectFromDialog() {
+  const projectId = elements.projectLinkSelect.value;
+  const sessionId = state.projectDialogSessionId;
+  if (!projectId || !sessionId) return;
+  await api(`/api/projects/${encodeURIComponent(projectId)}/sessions`, {
+    method: "POST",
+    body: { sessionId }
+  });
+  state.selectedProjectId = projectId;
+  localStorage.setItem("sessionHub.projectId", projectId);
+  closeProjectDialog();
+  state.view = "board";
+  localStorage.setItem("sessionHub.projectFirstView", "board");
+  await refreshBoard();
+  applyView();
+  toast("Session linked to project");
+}
+
+async function unlinkProjectFromDialog() {
+  const sessionId = state.projectDialogSessionId;
+  const projectId = state.selected?.id === sessionId ? state.selected.projectId : "";
+  if (!sessionId || !projectId) return;
+  await api(`/api/projects/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE"
+  });
+  closeProjectDialog();
+  await refresh({ preserveSelection: true });
+  toast("Session moved to Unassigned");
 }
 
 async function resumeSelected() {
@@ -1082,8 +1389,12 @@ async function addTask(event) {
 
 async function addWorkItem(event) {
   event.preventDefault();
-  if (!state.selected) return;
-  await api(`/api/sessions/${encodeURIComponent(state.selected.id)}/work-items`, {
+  const projectTarget = state.workItemTarget === "project";
+  if (projectTarget ? !state.selectedProjectId : !state.selected) return;
+  const endpoint = projectTarget
+    ? `/api/projects/${encodeURIComponent(state.selectedProjectId)}/work-items`
+    : `/api/sessions/${encodeURIComponent(state.selected.id)}/work-items`;
+  await api(endpoint, {
     method: "POST",
     body: {
       type: elements.workItemType.value,
@@ -1093,11 +1404,10 @@ async function addWorkItem(event) {
   });
   elements.workItemUrl.value = "";
   elements.workItemTitle.value = "";
-  state.selectedProjectId = state.selected.id;
-  localStorage.setItem("sessionHub.projectId", state.selected.id);
-  await selectSession(state.selected.id);
+  if (projectTarget) await refreshBoard();
+  else await selectSession(state.selected.id);
   closeWorkItemDialog();
-  toast("Work item linked");
+  toast(projectTarget ? "Work item linked to project" : "Work item linked");
 }
 
 function toggleTheme() {
@@ -1139,6 +1449,18 @@ function element(tag, className = "", text = "") {
   return node;
 }
 
+function projectMetaChip(kind, text) {
+  const icons = {
+    sessions: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h16v13H7l-3 3V4Zm2 2v9.17L6.17 15H18V6H6Z"/></svg>',
+    branch: '<svg aria-hidden="true" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M8 8c2 3 6 3 8 0"/></svg>',
+    folder: '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h7l2 2h9v12H3V5Zm2 4v8h14V9H5Z"/></svg>'
+  };
+  const chip = element("span", `project-meta-chip ${kind}`);
+  chip.innerHTML = icons[kind];
+  chip.append(document.createTextNode(text));
+  return chip;
+}
+
 function relativeTime(timestamp) {
   if (!timestamp) return "never";
   const seconds = Math.round((timestamp - Date.now()) / 1000);
@@ -1164,6 +1486,23 @@ function formatDuration(start, end) {
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
+}
+
+function sessionDurationMs(session) {
+  if (!session.startedAt) return 0;
+  return Math.max(0, (session.endedAt || session.updatedAt || session.startedAt) - session.startedAt);
+}
+
+function formatMilliseconds(milliseconds) {
+  const minutes = Math.max(0, Math.round(milliseconds / 60000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
+}
+
+function formatCredits(value) {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
 }
 
 function renderSessionMetrics(metrics = {}) {
@@ -1200,6 +1539,10 @@ function formatNumber(value) {
 
 function basename(path = "") {
   return path.split(/[\\/]/).filter(Boolean).at(-1) || "";
+}
+
+function projectName(project) {
+  return project.title || basename(project.repository) || basename(project.cwd) || "Untitled project";
 }
 
 function shortSessionId(value = "") {

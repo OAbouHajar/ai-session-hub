@@ -1,7 +1,7 @@
 import http from "node:http";
 import { readFile, writeFile, mkdir, access, rename, unlink } from "node:fs/promises";
 import { createReadStream, existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, extname, join, normalize } from "node:path";
+import { dirname, extname, isAbsolute, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir, platform } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
@@ -58,6 +58,16 @@ db.exec(`
     transcript_path TEXT NOT NULL DEFAULT '',
     compacted_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    repository TEXT NOT NULL DEFAULT '',
+    cwd TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -97,6 +107,7 @@ db.exec(`
     value TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_projects_updated ON projects(updated_at DESC);
   CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id, position);
   CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_work_items_session ON work_items(session_id, created_at);
@@ -104,6 +115,7 @@ db.exec(`
 `);
 ensureColumn("sessions", "imported", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("sessions", "is_project", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("sessions", "project_id", "TEXT NOT NULL DEFAULT ''");
 ensureColumn("sessions", "ai_credits", "REAL");
 ensureColumn("sessions", "current_tokens", "INTEGER");
 ensureColumn("sessions", "context_limit", "INTEGER");
@@ -111,12 +123,21 @@ ensureColumn("sessions", "model", "TEXT NOT NULL DEFAULT ''");
 ensureColumn("sessions", "context_tier", "TEXT NOT NULL DEFAULT ''");
 ensureColumn("sessions", "metrics_at", "INTEGER");
 ensureColumn("sessions", "initial_question", "TEXT NOT NULL DEFAULT ''");
+ensureColumn("tasks", "project_id", "TEXT NOT NULL DEFAULT ''");
+ensureColumn("work_items", "project_id", "TEXT NOT NULL DEFAULT ''");
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, position);
+  CREATE INDEX IF NOT EXISTS idx_work_items_project ON work_items(project_id, created_at);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_work_items_project_unique
+    ON work_items(project_id, work_item_id) WHERE project_id <> '';
+`);
 ensureColumn("sessions", "questions", "TEXT NOT NULL DEFAULT '[]'");
 ensureColumn("sessions", "files_status", "TEXT NOT NULL DEFAULT 'unavailable'");
 ensureColumn("sessions", "files_synced_at", "INTEGER");
 ensureColumn("sessions", "files_sync_error", "TEXT NOT NULL DEFAULT ''");
 ensureColumn("sessions", "provider", "TEXT NOT NULL DEFAULT 'copilot'");
 ensureColumn("sessions", "external_id", "TEXT NOT NULL DEFAULT ''");
+ensureColumn("session_files", "source", "TEXT NOT NULL DEFAULT 'history'");
 db.exec("UPDATE sessions SET external_id = id WHERE external_id = ''");
 ensureColumn("tasks", "status", "TEXT NOT NULL DEFAULT 'next'");
 db.exec("UPDATE tasks SET status = CASE WHEN completed = 1 THEN 'done' ELSE 'next' END WHERE status IS NULL OR status = ''");
@@ -124,6 +145,38 @@ const aicUnitVersion = db.prepare("SELECT value FROM app_metadata WHERE key = 'a
 if (aicUnitVersion !== "2") {
   db.exec("UPDATE sessions SET ai_credits = ai_credits * 1000 WHERE ai_credits IS NOT NULL");
   db.prepare("INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('aic_unit_version', '2')").run();
+}
+migrateLegacyProjects();
+
+function migrateLegacyProjects() {
+  const legacySessions = db.prepare("SELECT * FROM sessions WHERE is_project = 1 AND project_id = ''").all();
+  if (!legacySessions.length) return;
+  const create = db.prepare(`
+    INSERT INTO projects(id, title, description, status, repository, cwd, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const link = db.prepare("UPDATE sessions SET project_id = ? WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    for (const session of legacySessions) {
+      const projectId = randomUUID();
+      create.run(
+        projectId,
+        session.title || "Untitled project",
+        session.summary || "",
+        session.status === "complete" ? "complete" : "active",
+        session.repository || "",
+        session.cwd || "",
+        session.started_at,
+        session.updated_at
+      );
+      link.run(projectId, session.id);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function writeJsonAtomicSync(path, value) {
@@ -417,6 +470,8 @@ const server = http.createServer(async (request, response) => {
     if (url.pathname === "/api/stats" && request.method === "GET") return getStats(response);
     if (url.pathname === "/api/board" && request.method === "GET") return getBoard(url, response);
     if (url.pathname === "/api/projects" && request.method === "GET") return getProjects(response);
+    if (url.pathname === "/api/projects" && request.method === "POST") return createProject(await body(request), response);
+    if (url.pathname === "/api/project-suggestions" && request.method === "GET") return getProjectSuggestions(url, response);
     if (url.pathname === "/api/import-history" && request.method === "POST") {
       const result = importHistory();
       if (result.imported || result.fileSessions) broadcast("sessions-changed", { eventName: "history-imported" });
@@ -440,6 +495,24 @@ const server = http.createServer(async (request, response) => {
       if (action === "work-items" && request.method === "POST") return addWorkItem(id, await body(request), response);
       if (action === "resume" && request.method === "POST") return resumeSession(id, response);
       if (action === "folder" && request.method === "POST") return openFolder(id, response);
+    }
+
+    const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(sessions|tasks|work-items)(?:\/([^/]+))?)?$/);
+    if (projectMatch) {
+      const projectId = decodeURIComponent(projectMatch[1]);
+      const action = projectMatch[2];
+      const targetId = projectMatch[3] ? decodeURIComponent(projectMatch[3]) : "";
+      if (!action && request.method === "PATCH") return updateProject(projectId, await body(request), response);
+      if (action === "sessions" && !targetId && request.method === "POST") {
+        return linkProjectSession(projectId, await body(request), response);
+      }
+      if (action === "sessions" && targetId && request.method === "DELETE") {
+        return unlinkProjectSession(projectId, targetId, response);
+      }
+      if (action === "tasks" && request.method === "POST") return addProjectTask(projectId, await body(request), response);
+      if (action === "work-items" && request.method === "POST") {
+        return addProjectWorkItem(projectId, await body(request), response);
+      }
     }
 
     const taskMatch = url.pathname.match(/^\/api\/tasks\/(\d+)$/);
@@ -475,6 +548,7 @@ function listSessions(url, response) {
     if (filter === "wrapped") where.push("needs_review = 0 AND archived = 0");
     if (filter === "active") where.push("status = 'active' AND archived = 0");
     if (filter === "paused") where.push("status = 'paused' AND archived = 0");
+    if (filter === "unassigned") where.push("project_id = '' AND archived = 0");
     if (filter === "archived") where.push("archived = 1");
   }
   if (query) {
@@ -487,7 +561,7 @@ function listSessions(url, response) {
       OR instr(lower(next_action), lower(:query)) > 0
       OR EXISTS (
         SELECT 1 FROM tasks t
-        WHERE t.session_id = sessions.id AND instr(lower(t.text), lower(:query)) > 0
+        WHERE t.session_id = sessions.id AND t.project_id = '' AND instr(lower(t.text), lower(:query)) > 0
       )
       OR EXISTS (
         SELECT 1 FROM session_files sf
@@ -498,7 +572,7 @@ function listSessions(url, response) {
   }
   const matchSelect = query
     ? `, (SELECT sf.file_path FROM session_files sf WHERE sf.session_id = sessions.id AND instr(lower(sf.file_path), lower(:query)) > 0 ORDER BY sf.file_path LIMIT 1) AS matched_file_path
-       , (SELECT t.text FROM tasks t WHERE t.session_id = sessions.id AND instr(lower(t.text), lower(:query)) > 0 ORDER BY t.position, t.id LIMIT 1) AS matched_task_text`
+       , (SELECT t.text FROM tasks t WHERE t.session_id = sessions.id AND t.project_id = '' AND instr(lower(t.text), lower(:query)) > 0 ORDER BY t.position, t.id LIMIT 1) AS matched_task_text`
     : "";
   const sql = `SELECT sessions.*${matchSelect} FROM sessions ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY pinned DESC, CASE status WHEN 'active' THEN 0 ELSE 1 END, updated_at DESC`;
@@ -520,12 +594,22 @@ function listSessions(url, response) {
 }
 
 function getSession(id, response) {
-  const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
+  let row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
   if (!row) return json(response, 404, { error: "Session not found" });
+  if ((row.provider || "copilot") === "copilot") {
+    syncSessionFiles(id);
+    row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
+  }
   const session = sessionRecord(row);
-  session.tasks = db.prepare("SELECT * FROM tasks WHERE session_id = ? ORDER BY position, id").all(id).map(taskRecord);
-  session.workItems = db.prepare("SELECT * FROM work_items WHERE session_id = ? ORDER BY created_at, id").all(id).map(workItemRecord);
+  session.tasks = db.prepare(`
+    SELECT * FROM tasks WHERE session_id = ? AND project_id = '' ORDER BY position, id
+  `).all(id).map(taskRecord);
+  session.workItems = db.prepare(`
+    SELECT * FROM work_items WHERE session_id = ? AND project_id = '' ORDER BY created_at, id
+  `).all(id).map(workItemRecord);
   session.events = db.prepare("SELECT * FROM events WHERE session_id = ? ORDER BY created_at DESC LIMIT 40").all(id);
+  const project = row.project_id ? db.prepare("SELECT * FROM projects WHERE id = ?").get(row.project_id) : null;
+  session.project = project ? projectRecord(project) : null;
   Object.assign(session, fileHistoryRecord(row));
   json(response, 200, session);
 }
@@ -539,6 +623,7 @@ function getStats(response) {
       SUM(CASE WHEN status = 'active' AND archived = 0 THEN 1 ELSE 0 END) AS active,
       SUM(CASE WHEN status = 'paused' AND archived = 0 THEN 1 ELSE 0 END) AS paused,
       SUM(CASE WHEN needs_review = 1 AND archived = 0 THEN 1 ELSE 0 END) AS needsReview,
+      SUM(CASE WHEN project_id = '' AND archived = 0 THEN 1 ELSE 0 END) AS unassigned,
       SUM(CASE WHEN pinned = 1 AND archived = 0 THEN 1 ELSE 0 END) AS pinned
     FROM sessions
   `).get();
@@ -580,59 +665,250 @@ async function getApplicationInfo(response) {
 }
 
 function getBoard(url, response) {
-  const sessionId = url.searchParams.get("sessionId");
-  if (!sessionId) return json(response, 200, { tasks: [], counts: emptyBoardCounts(), total: 0, project: null, workItems: [] });
-  const projectRow = db.prepare("SELECT * FROM sessions WHERE id = ? AND is_project = 1 AND archived = 0").get(sessionId);
-  if (!projectRow) return json(response, 404, { error: "Tracked project not found" });
+  const projectId = url.searchParams.get("projectId") || url.searchParams.get("sessionId");
+  if (!projectId) return json(response, 200, { tasks: [], counts: emptyBoardCounts(), total: 0, project: null, workItems: [] });
+  let projectRow = db.prepare("SELECT * FROM projects WHERE id = ? AND status <> 'archived'").get(projectId);
+  if (!projectRow) {
+    const legacySession = db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(projectId);
+    if (legacySession?.project_id) {
+      projectRow = db.prepare("SELECT * FROM projects WHERE id = ? AND status <> 'archived'").get(legacySession.project_id);
+    }
+  }
+  if (!projectRow) return json(response, 404, { error: "Project workspace not found" });
+  const sessionRows = projectSessionRows(projectRow.id);
+  const sessionIds = sessionRows.map((session) => session.id);
+  const placeholders = sessionIds.map(() => "?").join(", ");
   const tasks = db.prepare(`
-    SELECT t.*, s.title AS session_title, s.repository, s.cwd, s.branch, s.updated_at AS session_updated_at
-    FROM tasks t
-    JOIN sessions s ON s.id = t.session_id
-    WHERE s.archived = 0 AND s.is_project = 1 AND s.id = ?
-    ORDER BY
-      CASE t.status
-        WHEN 'in_progress' THEN 0
-        WHEN 'blocked' THEN 1
-        WHEN 'next' THEN 2
-        WHEN 'backlog' THEN 3
-        WHEN 'done' THEN 4
-        ELSE 5
-      END,
-      s.pinned DESC,
-      s.updated_at DESC,
-      t.position,
-      t.id
-  `).all(sessionId).map((row) => ({
-    ...taskRecord(row),
-    sessionTitle: row.session_title,
-    repository: row.repository,
-    cwd: row.cwd,
-    branch: row.branch,
-    sessionUpdatedAt: row.session_updated_at
-  }));
+      SELECT t.*, s.title AS session_title, s.repository, s.cwd, s.branch, s.updated_at AS session_updated_at
+      FROM tasks t
+      JOIN sessions s ON s.id = t.session_id
+      WHERE t.project_id = ?
+        ${sessionIds.length ? `OR (t.project_id = '' AND s.archived = 0 AND s.id IN (${placeholders}))` : ""}
+      ORDER BY
+        CASE t.status
+          WHEN 'in_progress' THEN 0
+          WHEN 'blocked' THEN 1
+          WHEN 'next' THEN 2
+          WHEN 'backlog' THEN 3
+          WHEN 'done' THEN 4
+          ELSE 5
+        END,
+        s.pinned DESC,
+        s.updated_at DESC,
+        t.position,
+        t.id
+    `).all(projectRow.id, ...sessionIds).map((row) => ({
+      ...taskRecord(row),
+      sessionTitle: row.session_title,
+      repository: row.repository,
+      cwd: row.cwd,
+      branch: row.branch,
+      sessionUpdatedAt: row.session_updated_at
+    }));
   const counts = Object.fromEntries(["backlog", "next", "in_progress", "blocked", "done"].map((status) => [
     status,
     tasks.filter((task) => task.status === status).length
   ]));
-  const workItems = db.prepare("SELECT * FROM work_items WHERE session_id = ? ORDER BY created_at, id").all(sessionId).map(workItemRecord);
-  json(response, 200, { tasks, counts, total: tasks.length, project: { ...sessionRecord(projectRow), ...fileHistoryRecord(projectRow) }, workItems });
+  const workItems = db.prepare(`
+    SELECT * FROM work_items
+    WHERE project_id = ?
+      ${sessionIds.length ? `OR (project_id = '' AND session_id IN (${placeholders}))` : ""}
+    ORDER BY created_at, id
+  `).all(projectRow.id, ...sessionIds).map(workItemRecord);
+  const projectStateRow = sessionRows.find((session) => session.summary || session.last_action || session.next_action) || null;
+  json(response, 200, {
+    tasks,
+    counts,
+    total: tasks.length,
+    project: projectRecord(projectRow),
+    projectState: projectStateRow ? sessionRecord(projectStateRow) : null,
+    sessions: sessionRows.map((row) => ({ ...sessionRecord(row), ...fileHistoryRecord(row) })),
+    workItems
+  });
 }
 
 function getProjects(response) {
   const rows = db.prepare(`
-    SELECT s.*,
-      (SELECT COUNT(*) FROM tasks t WHERE t.session_id = s.id AND t.status <> 'done') AS open_task_count,
-      (SELECT COUNT(*) FROM work_items w WHERE w.session_id = s.id) AS work_item_count
-    FROM sessions s
-    WHERE s.is_project = 1 AND s.archived = 0
-    ORDER BY s.pinned DESC, s.updated_at DESC
+    SELECT p.*,
+      (SELECT COUNT(*) FROM sessions s WHERE s.project_id = p.id AND s.archived = 0) AS session_count,
+      (SELECT COUNT(*) FROM tasks t JOIN sessions s ON s.id = t.session_id
+        WHERE (t.project_id = p.id OR (t.project_id = '' AND s.project_id = p.id AND s.archived = 0))
+          AND t.status <> 'done') AS open_task_count,
+      (SELECT COUNT(*) FROM work_items w LEFT JOIN sessions s ON s.id = w.session_id
+        WHERE w.project_id = p.id OR (w.project_id = '' AND s.project_id = p.id AND s.archived = 0)) AS work_item_count,
+      COALESCE((SELECT MAX(s.updated_at) FROM sessions s WHERE s.project_id = p.id AND s.archived = 0), p.updated_at) AS activity_at
+    FROM projects p
+    WHERE p.status <> 'archived'
+    ORDER BY CASE p.status WHEN 'active' THEN 0 WHEN 'complete' THEN 1 ELSE 2 END, activity_at DESC
   `).all().map((row) => ({
-    ...sessionRecord(row),
-    ...fileHistoryRecord(row),
+    ...projectRecord(row),
+    updatedAt: row.activity_at,
+    sessionCount: row.session_count,
     openTaskCount: row.open_task_count,
     workItemCount: row.work_item_count
   }));
   json(response, 200, rows);
+}
+
+function createProject(data, response) {
+  const title = cleanText(data.title, 120);
+  if (!title) return json(response, 400, { error: "Project title is required" });
+  const sessionId = cleanText(data.sessionId, 300);
+  const session = sessionId ? db.prepare("SELECT * FROM sessions WHERE id = ? AND archived = 0").get(sessionId) : null;
+  if (sessionId && !session) return json(response, 404, { error: "Session not found" });
+  const now = Date.now();
+  const id = randomUUID();
+  const project = {
+    id,
+    title,
+    description: cleanText(data.description, 1000),
+    status: "active",
+    repository: session?.repository || "",
+    cwd: session?.cwd || "",
+    created_at: now,
+    updated_at: now
+  };
+  db.exec("BEGIN");
+  try {
+    db.prepare(`
+      INSERT INTO projects(id, title, description, status, repository, cwd, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(project.id, project.title, project.description, project.status, project.repository, project.cwd, now, now);
+    if (session) db.prepare("UPDATE sessions SET project_id = ? WHERE id = ?").run(id, session.id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  broadcast("sessions-changed", { id: sessionId || id, eventName: "project-created" });
+  json(response, 201, projectRecord(project));
+}
+
+function updateProject(id, data, response) {
+  const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  if (!existing) return json(response, 404, { error: "Project not found" });
+  const updates = [];
+  const values = [];
+  if (data.title !== undefined) {
+    const title = cleanText(data.title, 120);
+    if (!title) return json(response, 400, { error: "Project title is required" });
+    updates.push("title = ?");
+    values.push(title);
+  }
+  if (data.description !== undefined) {
+    updates.push("description = ?");
+    values.push(cleanText(data.description, 1000));
+  }
+  if (data.status !== undefined) {
+    const status = ["active", "complete", "archived"].includes(data.status) ? data.status : "";
+    if (!status) return json(response, 400, { error: "Invalid project status" });
+    updates.push("status = ?");
+    values.push(status);
+  }
+  if (!updates.length) return json(response, 400, { error: "No project changes supplied" });
+  updates.push("updated_at = ?");
+  values.push(Date.now(), id);
+  db.prepare(`UPDATE projects SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  broadcast("sessions-changed", { id, eventName: "project-updated" });
+  json(response, 200, projectRecord(db.prepare("SELECT * FROM projects WHERE id = ?").get(id)));
+}
+
+function linkProjectSession(projectId, data, response) {
+  const project = db.prepare("SELECT * FROM projects WHERE id = ? AND status <> 'archived'").get(projectId);
+  if (!project) return json(response, 404, { error: "Project not found" });
+  const sessionId = cleanText(data.sessionId, 300);
+  const session = db.prepare("SELECT * FROM sessions WHERE id = ? AND archived = 0").get(sessionId);
+  if (!session) return json(response, 404, { error: "Session not found" });
+  const now = Date.now();
+  db.exec("BEGIN");
+  try {
+    db.prepare("UPDATE sessions SET project_id = ?, updated_at = ? WHERE id = ?").run(projectId, now, sessionId);
+    db.prepare(`
+      UPDATE projects SET
+        repository = CASE WHEN repository = '' THEN ? ELSE repository END,
+        cwd = CASE WHEN cwd = '' THEN ? ELSE cwd END,
+        updated_at = ?
+      WHERE id = ?
+    `).run(session.repository || "", session.cwd || "", now, projectId);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  broadcast("sessions-changed", { id: sessionId, eventName: "project-session-linked" });
+  json(response, 200, { ok: true, projectId, sessionId });
+}
+
+function unlinkProjectSession(projectId, sessionId, response) {
+  const result = db.prepare("UPDATE sessions SET project_id = '', updated_at = ? WHERE id = ? AND project_id = ?")
+    .run(Date.now(), sessionId, projectId);
+  if (!result.changes) return json(response, 404, { error: "Session is not linked to this project" });
+  db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(Date.now(), projectId);
+  broadcast("sessions-changed", { id: sessionId, eventName: "project-session-unlinked" });
+  json(response, 200, { ok: true, projectId, sessionId });
+}
+
+function addProjectTask(projectId, data, response) {
+  const session = db.prepare(`
+    SELECT * FROM sessions WHERE project_id = ? AND archived = 0
+    ORDER BY updated_at DESC LIMIT 1
+  `).get(projectId);
+  if (!session) return json(response, 409, { error: "Link a session to this project before adding tasks" });
+  const text = cleanText(data.text, 500);
+  if (!text) return json(response, 400, { error: "Task text is required" });
+  const status = normalizeTaskStatus(data.status);
+  const position = db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE project_id = ?")
+    .get(projectId).position;
+  const now = Date.now();
+  const result = db.prepare(`
+    INSERT INTO tasks(session_id, project_id, text, completed, position, created_at, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(session.id, projectId, text, status === "done" ? 1 : 0, position, now, status);
+  db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, projectId);
+  broadcast("sessions-changed", { id: session.id, eventName: "task-added" });
+  json(response, 201, {
+    id: Number(result.lastInsertRowid), sessionId: session.id, projectId, text,
+    completed: status === "done", status, position
+  });
+}
+
+function addProjectWorkItem(projectId, data, response) {
+  const project = db.prepare("SELECT id FROM projects WHERE id = ? AND status <> 'archived'").get(projectId);
+  if (!project) return json(response, 404, { error: "Project not found" });
+  const session = db.prepare(`
+    SELECT id FROM sessions WHERE project_id = ? AND archived = 0
+    ORDER BY updated_at DESC LIMIT 1
+  `).get(projectId);
+  if (!session) return json(response, 409, { error: "Link a session to this project before adding work items" });
+  insertWorkItem(session.id, projectId, data, response);
+}
+
+function getProjectSuggestions(url, response) {
+  const sessionId = url.searchParams.get("sessionId");
+  const session = db.prepare("SELECT * FROM sessions WHERE id = ? AND archived = 0").get(sessionId);
+  if (!session) return json(response, 404, { error: "Session not found" });
+  const projects = db.prepare("SELECT * FROM projects WHERE status = 'active' AND id <> ? ORDER BY updated_at DESC")
+    .all(session.project_id || "")
+    .map((project) => {
+      const repositoryMatch = Boolean(session.repository && project.repository === session.repository);
+      const workspaceMatch = Boolean(session.cwd && project.cwd === session.cwd);
+      return {
+        ...projectRecord(project),
+        suggested: repositoryMatch || workspaceMatch,
+        suggestionReason: repositoryMatch ? "Same repository" : workspaceMatch ? "Same working directory" : ""
+      };
+    })
+    .sort((left, right) => Number(right.suggested) - Number(left.suggested) || right.updatedAt - left.updatedAt);
+  json(response, 200, projects);
+}
+
+function projectSessionRows(projectId) {
+  return db.prepare("SELECT * FROM sessions WHERE project_id = ? AND archived = 0 ORDER BY updated_at DESC").all(projectId);
+}
+
+function touchProjectForSession(sessionId, timestamp = Date.now()) {
+  const row = db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(sessionId);
+  if (row?.project_id) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(timestamp, row.project_id);
 }
 
 function handleHook(provider, eventName, payload, response) {
@@ -674,9 +950,14 @@ function handleHook(provider, eventName, payload, response) {
   broadcast("sessions-changed", { id, eventName });
   const update = updateChecker.cachedStatus();
   const updateJob = eventName === "sessionStart" ? takeUpdateCompletionNotice() : null;
+  const trackedSession = db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(id);
+  const project = trackedSession?.project_id
+    ? db.prepare("SELECT * FROM projects WHERE id = ?").get(trackedSession.project_id)
+    : null;
   json(response, 200, {
     ok: true,
     sessionId: id,
+    project: project ? projectRecord(project) : null,
     update: update.updateAvailable ? update : null,
     updateJob
   });
@@ -694,6 +975,16 @@ function checkpoint(id, data, response) {
   const unresolved = data.unresolved === undefined ? parseArray(existing.unresolved) : cleanArray(data.unresolved, 20, 500);
   const decisions = data.decisions === undefined ? parseArray(existing.decisions) : cleanArray(data.decisions, 20, 500);
   const tasks = data.tasks === undefined ? null : cleanArray(data.tasks, 20, 500);
+  const completedTasks = data.completedTasks === undefined ? [] : cleanArray(data.completedTasks, 20, 500);
+  const files = cleanCheckpointFiles(data.files, existing);
+  const taskSessionIds = existing.project_id
+    ? projectSessionRows(existing.project_id).map((session) => session.id)
+    : [id];
+  const taskPlaceholders = taskSessionIds.map(() => "?").join(", ");
+  const taskScopeWhere = existing.project_id
+    ? `(project_id = ? OR (project_id = '' AND session_id IN (${taskPlaceholders})))`
+    : "project_id = '' AND session_id = ?";
+  const taskScopeArgs = existing.project_id ? [existing.project_id, ...taskSessionIds] : [id];
   const metrics = existing.provider === "copilot"
     ? readSessionMetrics(id, existing.transcript_path)
     : {
@@ -717,9 +1008,11 @@ function checkpoint(id, data, response) {
       id
     );
     if (tasks) {
-      const existingTasks = db.prepare("SELECT text FROM tasks WHERE session_id = ?").all(id);
+      const existingTasks = db.prepare(`SELECT text FROM tasks WHERE ${taskScopeWhere}`).all(...taskScopeArgs);
       const existingText = new Set(existingTasks.map((task) => task.text.toLocaleLowerCase()));
-      const nextPosition = Number(db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE session_id = ?").get(id).position);
+      const nextPosition = Number(db.prepare(`
+        SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE session_id = ? AND project_id = ''
+      `).get(id).position);
       const insert = db.prepare("INSERT INTO tasks(session_id, text, completed, position, created_at, status) VALUES (?, ?, 0, ?, ?, 'next')");
       let added = 0;
       for (const task of tasks) {
@@ -730,6 +1023,16 @@ function checkpoint(id, data, response) {
         added++;
       }
     }
+    if (completedTasks.length) {
+      const completedKeys = new Set(completedTasks.map((task) => task.toLocaleLowerCase()));
+      const projectTasks = db.prepare(`SELECT id, text FROM tasks WHERE ${taskScopeWhere}`).all(...taskScopeArgs);
+      const completeTask = db.prepare("UPDATE tasks SET completed = 1, status = 'done' WHERE id = ?");
+      for (const task of projectTasks) {
+        if (completedKeys.has(task.text.toLocaleLowerCase())) completeTask.run(task.id);
+      }
+    }
+    if (existing.project_id) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, existing.project_id);
+    if (files?.length) mergeCheckpointFiles(id, files, now);
     addEvent(id, "checkpoint", "AI continuity checkpoint saved", now);
     db.exec("COMMIT");
   } catch (error) {
@@ -738,7 +1041,16 @@ function checkpoint(id, data, response) {
   }
   broadcast("sessions-changed", { id, eventName: "checkpoint" });
   const update = updateChecker.cachedStatus();
-  json(response, 200, { ok: true, dashboardUrl: baseUrl, sessionId: id, update });
+  const project = existing.project_id
+    ? db.prepare("SELECT * FROM projects WHERE id = ?").get(existing.project_id)
+    : null;
+  json(response, 200, {
+    ok: true,
+    dashboardUrl: baseUrl,
+    sessionId: id,
+    project: project ? projectRecord(project) : null,
+    update
+  });
   scheduleUpdateCheck();
 }
 
@@ -766,8 +1078,30 @@ function updateSession(id, data, response) {
   values.push(Date.now(), id);
   const result = db.prepare(`UPDATE sessions SET ${updates.join(", ")} WHERE id = ?`).run(...values);
   if (!result.changes) return json(response, 404, { error: "Session not found" });
+  if (data.isProject !== undefined) setLegacyProjectTracking(id, Boolean(data.isProject));
   broadcast("sessions-changed", { id, eventName: "updated" });
   getSession(id, response);
+}
+
+function setLegacyProjectTracking(sessionId, enabled) {
+  const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(sessionId);
+  if (!session) return;
+  if (enabled && !session.project_id) {
+    const now = Date.now();
+    const projectId = randomUUID();
+    db.prepare(`
+      INSERT INTO projects(id, title, description, status, repository, cwd, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
+    `).run(projectId, session.title, session.summary || "", session.repository || "", session.cwd || "", now, now);
+    db.prepare("UPDATE sessions SET project_id = ? WHERE id = ?").run(projectId, sessionId);
+    return;
+  }
+  if (!enabled && session.project_id) {
+    const projectId = session.project_id;
+    db.prepare("UPDATE sessions SET project_id = '' WHERE id = ?").run(sessionId);
+    const remaining = db.prepare("SELECT COUNT(*) AS count FROM sessions WHERE project_id = ?").get(projectId).count;
+    if (!remaining) db.prepare("UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?").run(Date.now(), projectId);
+  }
 }
 
 function addTask(id, data, response) {
@@ -777,6 +1111,7 @@ function addTask(id, data, response) {
   const position = db.prepare("SELECT COALESCE(MAX(position), -1) + 1 AS position FROM tasks WHERE session_id = ?").get(id).position;
   const result = db.prepare("INSERT INTO tasks(session_id, text, completed, position, created_at, status) VALUES (?, ?, ?, ?, ?, ?)")
     .run(id, text, status === "done" ? 1 : 0, position, Date.now(), status);
+  touchProjectForSession(id);
   broadcast("sessions-changed", { id, eventName: "task-added" });
   json(response, 201, { id: Number(result.lastInsertRowid), sessionId: id, text, completed: status === "done", status, position });
 }
@@ -789,15 +1124,22 @@ function updateTask(id, data, response) {
   if (data.completed !== undefined) status = data.completed ? "done" : (status === "done" ? "next" : status);
   const completed = status === "done" ? 1 : 0;
   db.prepare("UPDATE tasks SET text = ?, completed = ?, status = ? WHERE id = ?").run(text, completed, status, id);
-  db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(Date.now(), row.session_id);
+  const now = Date.now();
+  if (row.project_id) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, row.project_id);
+  else {
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(now, row.session_id);
+    touchProjectForSession(row.session_id, now);
+  }
   broadcast("sessions-changed", { id: row.session_id, eventName: "task-updated" });
   json(response, 200, taskRecord({ ...row, text, completed, status }));
 }
 
 function deleteTask(id, response) {
-  const row = db.prepare("SELECT session_id FROM tasks WHERE id = ?").get(id);
+  const row = db.prepare("SELECT session_id, project_id FROM tasks WHERE id = ?").get(id);
   if (!row) return json(response, 404, { error: "Task not found" });
   db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
+  if (row.project_id) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(Date.now(), row.project_id);
+  else touchProjectForSession(row.session_id);
   broadcast("sessions-changed", { id: row.session_id, eventName: "task-deleted" });
   json(response, 200, { ok: true });
 }
@@ -805,6 +1147,10 @@ function deleteTask(id, response) {
 function addWorkItem(sessionId, data, response) {
   const session = db.prepare("SELECT id FROM sessions WHERE id = ?").get(sessionId);
   if (!session) return json(response, 404, { error: "Session not found" });
+  insertWorkItem(sessionId, "", data, response);
+}
+
+function insertWorkItem(sessionId, projectId, data, response) {
   const url = cleanText(data.url, 2000);
   const parsed = parseAdoWorkItemUrl(url);
   if (!parsed) return json(response, 400, { error: "Enter a valid Azure DevOps work item URL containing /_workitems/edit/{id}" });
@@ -812,14 +1158,18 @@ function addWorkItem(sessionId, data, response) {
   const title = cleanText(data.title, 200);
   try {
     const result = db.prepare(`
-      INSERT INTO work_items(session_id, work_item_id, type, title, url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(sessionId, parsed.id, type, title, parsed.url, Date.now());
-    db.prepare("UPDATE sessions SET is_project = 1, updated_at = ? WHERE id = ?").run(Date.now(), sessionId);
+      INSERT INTO work_items(session_id, project_id, work_item_id, type, title, url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(sessionId, projectId, parsed.id, type, title, parsed.url, Date.now());
+    const now = Date.now();
+    db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(now, sessionId);
+    if (projectId) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(now, projectId);
+    else touchProjectForSession(sessionId, now);
     broadcast("sessions-changed", { id: sessionId, eventName: "work-item-added" });
     json(response, 201, {
       id: Number(result.lastInsertRowid),
       sessionId,
+      projectId,
       workItemId: parsed.id,
       type,
       title,
@@ -832,9 +1182,11 @@ function addWorkItem(sessionId, data, response) {
 }
 
 function deleteWorkItem(id, response) {
-  const row = db.prepare("SELECT session_id FROM work_items WHERE id = ?").get(id);
+  const row = db.prepare("SELECT session_id, project_id FROM work_items WHERE id = ?").get(id);
   if (!row) return json(response, 404, { error: "Work item link not found" });
   db.prepare("DELETE FROM work_items WHERE id = ?").run(id);
+  if (row.project_id) db.prepare("UPDATE projects SET updated_at = ? WHERE id = ?").run(Date.now(), row.project_id);
+  else touchProjectForSession(row.session_id);
   broadcast("sessions-changed", { id: row.session_id, eventName: "work-item-deleted" });
   json(response, 200, { ok: true });
 }
@@ -1067,6 +1419,7 @@ function sessionRecord(row) {
     compactedAt: row.compacted_at,
     imported: Boolean(row.imported),
     isProject: Boolean(row.is_project),
+    projectId: row.project_id || "",
     metrics: {
       aiCredits: row.ai_credits,
       currentTokens: row.current_tokens,
@@ -1078,10 +1431,26 @@ function sessionRecord(row) {
   };
 }
 
+function projectRecord(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    summary: row.description || "",
+    description: row.description || "",
+    status: row.status,
+    isProject: true,
+    repository: row.repository || "",
+    cwd: row.cwd || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function taskRecord(row) {
   return {
     id: row.id,
     sessionId: row.session_id,
+    projectId: row.project_id || "",
     text: row.text,
     completed: Boolean(row.completed),
     status: normalizeTaskStatus(row.status || (row.completed ? "done" : "next")),
@@ -1093,6 +1462,7 @@ function workItemRecord(row) {
   return {
     id: row.id,
     sessionId: row.session_id,
+    projectId: row.project_id || "",
     workItemId: row.work_item_id,
     type: row.type,
     title: row.title,
@@ -1482,16 +1852,23 @@ function replaceSessionFiles(sessionId, sourceRows, timestamp, useTransaction = 
   }
   if (invalidRows) return markFileHistoryFailure(sessionId, "SOURCE_ROWS_INVALID");
   const write = () => {
-    db.prepare("DELETE FROM session_files WHERE session_id = ?").run(sessionId);
+    db.prepare("DELETE FROM session_files WHERE session_id = ? AND source = 'history'").run(sessionId);
     const insert = db.prepare(`
-      INSERT INTO session_files(session_id, file_path, path_key, tool_name, turn_index, first_seen_at)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO session_files(session_id, file_path, path_key, tool_name, turn_index, first_seen_at, source)
+      VALUES (?, ?, ?, ?, ?, ?, 'history')
+      ON CONFLICT(session_id, path_key) DO UPDATE SET
+        file_path = excluded.file_path,
+        tool_name = excluded.tool_name,
+        turn_index = excluded.turn_index,
+        first_seen_at = excluded.first_seen_at,
+        source = CASE WHEN session_files.source = 'checkpoint' THEN 'checkpoint' ELSE 'history' END
     `);
     for (const file of files.values()) {
       insert.run(sessionId, file.filePath, file.pathKey, file.toolName, file.turnIndex, file.firstSeenAt);
     }
+    const count = Number(db.prepare("SELECT COUNT(*) AS count FROM session_files WHERE session_id = ?").get(sessionId).count);
     db.prepare("UPDATE sessions SET files_status = ?, files_synced_at = ?, files_sync_error = '' WHERE id = ?")
-      .run(files.size ? "current" : "empty", timestamp, sessionId);
+      .run(count ? "current" : "empty", timestamp, sessionId);
   };
   if (!useTransaction) {
     write();
@@ -1509,6 +1886,43 @@ function replaceSessionFiles(sessionId, sourceRows, timestamp, useTransaction = 
   }
 }
 
+function cleanCheckpointFiles(value, session) {
+    if (!Array.isArray(value)) return null;
+    const workspace = session.repository || session.cwd;
+    const files = new Map();
+    for (const item of value.slice(0, 100)) {
+      const suppliedPath = typeof item === "string" ? item : item?.path;
+      if (typeof suppliedPath !== "string" || !suppliedPath.trim()) continue;
+      const filePath = !isAbsolute(suppliedPath) && workspace
+        ? resolve(workspace, suppliedPath)
+        : suppliedPath;
+      const file = cleanHistoryFile({
+        file_path: filePath,
+        tool_name: typeof item === "object" ? item.toolName : "worked-on",
+        turn_index: null,
+        first_seen_at: Date.now()
+      });
+      if (file) files.set(file.pathKey, file);
+    }
+    return [...files.values()];
+  }
+
+function mergeCheckpointFiles(sessionId, files, timestamp) {
+    const insert = db.prepare(`
+      INSERT INTO session_files(session_id, file_path, path_key, tool_name, turn_index, first_seen_at, source)
+      VALUES (?, ?, ?, ?, ?, ?, 'checkpoint')
+      ON CONFLICT(session_id, path_key) DO UPDATE SET
+        file_path = excluded.file_path,
+        tool_name = excluded.tool_name,
+        first_seen_at = COALESCE(session_files.first_seen_at, excluded.first_seen_at),
+        source = 'checkpoint'
+    `);
+    for (const file of files) {
+      insert.run(sessionId, file.filePath, file.pathKey, file.toolName, file.turnIndex, file.firstSeenAt);
+    }
+    db.prepare("UPDATE sessions SET files_status = 'current', files_synced_at = ?, files_sync_error = '' WHERE id = ?")
+      .run(timestamp, sessionId);
+  }
 function markFileHistoryFailure(sessionId, errorCode) {
   const count = Number(db.prepare("SELECT COUNT(*) AS count FROM session_files WHERE session_id = ?").get(sessionId)?.count || 0);
   db.prepare("UPDATE sessions SET files_status = ?, files_sync_error = ? WHERE id = ?")

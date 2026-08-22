@@ -1,0 +1,18 @@
+{
+  "name": "ai-session-hub",
+  "owner": {
+    "name": "AI Session Hub"
+  },
+  "metadata": {
+    "description": "Official plugins for AI Session Hub",
+    "version": "0.3.4"
+  },
+  "plugins": [
+    {
+      "name": "copilot-session-hub",
+      "description": "Persistent session continuity and project management for AI CLIs.",
+      "version": "0.3.4",
+      "source": "."
+    }
+  ]
+}

@@ -38,10 +38,10 @@ test.after(async () => {
 
 test("reports installed and available stable versions", async () => {
   const health = await fetch(`${baseUrl}/api/health`).then((response) => response.json());
-  assert.equal(health.version, "0.3.3");
+  assert.equal(health.version, "0.3.4");
 
   const update = await fetch(`${baseUrl}/api/update?refresh=1`).then((response) => response.json());
-  assert.equal(update.currentVersion, "0.3.3");
+  assert.equal(update.currentVersion, "0.3.4");
   assert.equal(update.latestVersion, "0.4.0");
   assert.equal(update.updateAvailable, true);
   assert.equal(update.error, "");
@@ -65,7 +65,7 @@ test("prepares an update and continues it when the initiating session exits", as
   assert.equal((await response.json()).job.state, "preparing");
 
   const job = await waitForUpdateState("waiting_for_exit");
-  assert.equal(job.fromVersion, "0.3.3");
+  assert.equal(job.fromVersion, "0.3.4");
   assert.equal(job.toVersion, "0.4.0");
   const config = JSON.parse(await readFile(join(dataDir, "update", "job.json"), "utf8"));
   assert.equal(config.cancelPath, join(dataDir, "update", "cancel"));
@@ -179,7 +179,8 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
       nextAction: "Verify the dashboard.",
       tasks: ["Run tests", "Install plugin"],
       unresolved: ["Visual regression testing"],
-      decisions: ["Use localhost-only storage"]
+      decisions: ["Use localhost-only storage"],
+      files: [{ path: "server/server.mjs", toolName: "edit" }]
     })
   });
   assert.equal(response.status, 200);
@@ -190,6 +191,8 @@ test("tracks, checkpoints, and updates a Copilot session", async () => {
   assert.equal(session.tasks.length, 2);
   assert.equal(session.needsReview, false);
   assert.equal(session.metrics.aiCredits, 18_943);
+  assert.equal(session.fileHistoryStatus, "current");
+  assert.equal(session.files[0].displayPath, "server/server.mjs");
 
   response = await fetch(`${baseUrl}/api/sessions/${id}`, {
     method: "PATCH",

@@ -420,13 +420,160 @@ test("returns an actionable conflict when the resume workspace is missing", asyn
   }
 });
 
-test("static UI retains recall-first and secondary-project contracts", async () => {
-  const [html, app, hookClient, wrap, wrapWithNext, unwrap, hubUpdate, installPrompt, logoMark] = await Promise.all([
+test("projects are explicit, keep unassigned sessions separate, and enforce one primary project", async () => {
+  const fixture = await createFixture();
+  const server = await startServer(fixture);
+  const firstSession = "project-wrap-first";
+  const secondSession = "project-wrap-second";
+  try {
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId: firstSession, cwd: fixture.directory, timestamp: Date.now(), source: "new" }
+    });
+    await request(server, `/api/sessions/${firstSession}/checkpoint`, {
+      method: "POST",
+      body: {
+        title: "Plan project dashboard",
+        summary: "Defined the project-first direction.",
+        lastAction: "Created the initial plan.",
+        nextAction: "Implement project overview",
+        tasks: ["Implement project overview", "Write project tests"],
+        completedTasks: [],
+        unresolved: [],
+        decisions: [],
+        files: []
+      }
+    });
+
+    await request(server, "/api/hooks/sessionStart", {
+      method: "POST",
+      body: { sessionId: secondSession, cwd: fixture.directory, timestamp: Date.now() + 1, source: "new" }
+    });
+    await request(server, `/api/sessions/${secondSession}/checkpoint`, {
+      method: "POST",
+      body: {
+        title: "Build project dashboard",
+        summary: "Implemented the project overview.",
+        lastAction: "Implemented project overview",
+        nextAction: "Release the new version",
+        tasks: [],
+        completedTasks: [],
+        unresolved: [],
+        decisions: ["Projects are the primary workspace."],
+        files: []
+      }
+    });
+
+    assert.deepEqual(await request(server, "/api/projects"), []);
+    const unassigned = await request(server, "/api/sessions?filter=unassigned");
+    assert.deepEqual(new Set(unassigned.map((session) => session.id)), new Set([firstSession, secondSession]));
+
+    const releaseProject = await request(server, "/api/projects", {
+      method: "POST",
+      body: {
+        title: "Prepare v0.4 release",
+        description: "Ship the next stable version.",
+        sessionId: firstSession
+      }
+    });
+    let board = await request(server, `/api/board?projectId=${releaseProject.id}`);
+    assert.equal(board.sessions.length, 1);
+    assert.equal(board.sessions[0].id, firstSession);
+
+    const suggestions = await request(server, `/api/project-suggestions?sessionId=${secondSession}`);
+    assert.equal(suggestions[0].id, releaseProject.id);
+    assert.equal(suggestions[0].suggested, true);
+    assert.equal(suggestions[0].suggestionReason, "Same working directory");
+
+    await request(server, `/api/projects/${releaseProject.id}/sessions`, {
+      method: "POST",
+      body: { sessionId: secondSession }
+    });
+    await request(server, `/api/sessions/${secondSession}/checkpoint`, {
+      method: "POST",
+      body: {
+        nextAction: "Release the new version",
+        tasks: ["Write project tests", "Release the new version"],
+        completedTasks: ["Implement project overview"]
+      }
+    });
+
+    const projects = await request(server, "/api/projects");
+    assert.equal(projects.length, 1);
+    assert.equal(projects[0].title, "Prepare v0.4 release");
+    assert.equal(projects[0].sessionCount, 2);
+    assert.equal(projects[0].openTaskCount, 2);
+
+    board = await request(server, `/api/board?projectId=${releaseProject.id}`);
+    assert.equal(board.sessions.length, 2);
+    assert.equal(board.projectState.id, secondSession);
+    assert.equal(board.projectState.nextAction, "Release the new version");
+    assert.equal(board.total, 3);
+    assert.equal(board.counts.done, 1);
+    assert.equal(board.counts.next, 2);
+
+    const projectWorkItem = await request(server, `/api/projects/${releaseProject.id}/work-items`, {
+      method: "POST",
+      body: {
+        type: "Feature",
+        title: "Release tracking",
+        url: "https://dev.azure.com/example/session-hub/_workitems/edit/4321"
+      }
+    });
+    assert.equal(projectWorkItem.projectId, releaseProject.id);
+    board = await request(server, `/api/board?projectId=${releaseProject.id}`);
+    assert.equal(board.workItems.length, 1);
+    assert.equal(board.workItems[0].workItemId, 4321);
+    const projectTask = await request(server, `/api/projects/${releaseProject.id}/tasks`, {
+      method: "POST",
+      body: { text: "Publish release notes", status: "next" }
+    });
+    assert.equal(projectTask.projectId, releaseProject.id);
+
+    const codeProject = await request(server, "/api/projects", {
+      method: "POST",
+      body: { title: "Implement code changes", description: "Deliver a separate code goal." }
+    });
+    await request(server, `/api/projects/${codeProject.id}/sessions`, {
+      method: "POST",
+      body: { sessionId: secondSession }
+    });
+    const releaseBoard = await request(server, `/api/board?projectId=${releaseProject.id}`);
+    const codeBoard = await request(server, `/api/board?projectId=${codeProject.id}`);
+    assert.deepEqual(releaseBoard.sessions.map((session) => session.id), [firstSession]);
+    assert.deepEqual(codeBoard.sessions.map((session) => session.id), [secondSession]);
+    assert.equal(releaseBoard.tasks.some((task) => task.text === "Publish release notes"), true);
+    assert.equal(codeBoard.tasks.some((task) => task.text === "Publish release notes"), false);
+    assert.equal(releaseBoard.workItems.length, 1);
+    assert.equal(codeBoard.workItems.length, 0);
+    const movedSessionDetail = await request(server, `/api/sessions/${secondSession}`);
+    assert.deepEqual(movedSessionDetail.workItems, []);
+    assert.equal(movedSessionDetail.tasks.some((task) => task.text === "Publish release notes"), false);
+
+    await request(server, `/api/projects/${codeProject.id}/sessions/${secondSession}`, { method: "DELETE" });
+    const movedSession = await request(server, `/api/sessions/${secondSession}`);
+    assert.equal(movedSession.projectId, "");
+    assert.equal(movedSession.project, null);
+
+    const completedProject = await request(server, `/api/projects/${releaseProject.id}`, {
+      method: "PATCH",
+      body: { status: "complete" }
+    });
+    assert.equal(completedProject.status, "complete");
+  } finally {
+    await stopServer(server, fixture);
+  }
+});
+
+test("static UI presents explicit projects first and preserves session tools", async () => {
+  const [html, app, styles, hookClient, wrap, wrapWithNext, hubProject, unwrap, hubUpdate, installPrompt, logoMark] = await Promise.all([
     readFile(join(root, "public", "index.html"), "utf8"),
     readFile(join(root, "public", "app.js"), "utf8"),
+    readFile(join(root, "public", "styles.css"), "utf8"),
     readFile(join(root, "scripts", "hook-client.mjs"), "utf8"),
     readFile(join(root, "commands", "wrap.md"), "utf8"),
     readFile(join(root, "commands", "wrap-with-next.md"), "utf8"),
+    readFile(join(root, "commands", "hub-project.md"), "utf8"),
     readFile(join(root, "commands", "unwrap.md"), "utf8"),
     readFile(join(root, "commands", "hub-update.md"), "utf8"),
     readFile(join(root, "docs", "copilot-install-prompt.md"), "utf8"),
@@ -436,9 +583,32 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(html, /<link rel="icon" href="\/logo-mark\.png"/);
   assert.match(html, /<img src="\/logo-mark\.png" alt="">/);
   assert.deepEqual([...logoMark.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.match(html, /Search what you remember/);
+  assert.match(html, /AI project management/);
+  assert.match(html, /Find a project or session/);
   assert.match(html, /Task, project, folder, or file/);
+  assert.match(html, /data-view="board"[\s\S]*Projects/);
+  assert.match(html, /Where the project stands/);
+  assert.match(html, /Wrap updates this project only when the session is linked/);
+  assert.match(html, /Unassigned sessions/);
+  assert.match(html, /id="projectDialog"/);
+  assert.match(html, /id="linkProjectWorkItemButton"/);
+  assert.match(html, /id="projectWorkItems"/);
+  assert.doesNotMatch(html, /id="projectSelect"/);
+  assert.doesNotMatch(html, /Current project/);
+  assert.match(html, /id="workItemForm"[\s\S]*<\/form>\s*<\/div>\s*<\/div>\s*<div id="projectDialog"/);
+  assert.match(html, /id="projectOverviewPanel"/);
+  assert.match(html, /id="projectSessionList"/);
+  assert.match(app, /function renderProjectWorkspace/);
+  assert.match(app, /projectMetaChip\("sessions"/);
+  assert.match(app, /projectMetaChip\("branch"/);
+  assert.match(app, /projectMetaChip\("folder"/);
+  assert.match(app, /function projectMetaChip/);
+  assert.match(app, /function renderProjectWorkItems/);
+  assert.match(app, /project-empty-tasks/);
+  assert.match(app, /\/api\/projects\/\$\{encodeURIComponent\(state\.selectedProjectId\)\}\/work-items/);
+  assert.match(app, /sessionHub\.projectFirstView/);
   assert.match(html, /Files involved/);
+  assert.match(html, /id="filesSection"/);
   assert.match(html, /Questions and actions/);
   assert.match(html, /id="boardView"/);
   assert.equal((html.match(/data-add-board-task=/g) || []).length, 5);
@@ -457,16 +627,29 @@ test("static UI retains recall-first and secondary-project contracts", async () 
   assert.match(app, /\/wrap-with-next/);
   assert.match(app, /\/unwrap/);
   assert.match(app, /\/hub-update/);
+  assert.match(app, /\/hub-project/);
   assert.match(app, /function refreshUpdateStatus/);
+  assert.match(app, /elements\.filesSection\.classList\.toggle\("hidden", !files\.length\)/);
+  assert.match(styles, /\.kanban-card \{[^}]*min-width: 0;[^}]*max-width: 100%;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.card-text \{[^}]*overflow-wrap: anywhere;/);
   assert.match(hookClient, /body\.update\?\.updateAvailable/);
   assert.match(hookClient, /Copilot users can run \/hub-update/);
   assert.match(hookClient, /api\/update\/install/);
   assert.match(hookClient, /Never run or show a separate installer command/);
   assert.match(hookClient, /updated successfully from/);
+  assert.match(hookClient, /files array of \{path,toolName\}/);
+  assert.match(hookClient, /completedTasks/);
   assert.match(wrap, /update\.updateAvailable/);
+  assert.match(wrap, /"files"/);
+  assert.match(wrap, /"completedTasks"/);
   assert.match(wrapWithNext, /What should I save in the todo list for your next session\?/);
   assert.match(wrapWithNext, /"tasks"/);
+  assert.match(wrapWithNext, /"completedTasks"/);
   assert.match(wrapWithNext, /update\.updateAvailable/);
+  assert.match(wrapWithNext, /"files"/);
+  assert.match(hubProject, /one primary project/);
+  assert.match(hubProject, /Never infer or create a project from the repository/);
+  assert.match(hubProject, /api\/project-suggestions/);
   assert.match(unwrap, /"needsReview": true/);
   assert.match(unwrap, /Do not clear or replace/);
   assert.match(hubUpdate, /\/api\/update\/install/);

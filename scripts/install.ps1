@@ -65,9 +65,27 @@ if (Get-Command copilot -ErrorAction SilentlyContinue) {
         copilot plugin uninstall copilot-session-hub 2>$null | Out-Null
     } catch {
     }
+    try {
+        copilot plugin marketplace remove ai-session-hub 2>$null | Out-Null
+    } catch {
+    }
+    $MarketplaceReady = $false
+    for ($Attempt = 0; $Attempt -lt 3; $Attempt++) {
+        copilot plugin marketplace add $InstallRoot 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            $MarketplaceReady = $true
+            break
+        }
+        Start-Sleep -Seconds 1
+    }
+    if (-not $MarketplaceReady) {
+        Start-Process -FilePath "node" -ArgumentList "`"$ServerPath`"" -WorkingDirectory $InstallRoot -WindowStyle Hidden
+        throw "AI Session Hub was updated, but its verified local Copilot plugin marketplace could not be registered. Exit active Copilot CLI sessions and rerun this installer."
+    }
+
     $PluginInstalled = $false
     for ($Attempt = 0; $Attempt -lt 5; $Attempt++) {
-        $InstallOutput = copilot plugin install $InstallRoot 2>&1
+        $InstallOutput = copilot plugin install copilot-session-hub@ai-session-hub 2>&1
         if ($LASTEXITCODE -eq 0) {
             $PluginInstalled = $true
             break

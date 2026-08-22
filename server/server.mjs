@@ -1924,9 +1924,15 @@ function mergeCheckpointFiles(sessionId, files, timestamp) {
       .run(timestamp, sessionId);
   }
 function markFileHistoryFailure(sessionId, errorCode) {
-  const count = Number(db.prepare("SELECT COUNT(*) AS count FROM session_files WHERE session_id = ?").get(sessionId)?.count || 0);
+  const files = db.prepare(`
+    SELECT COUNT(*) AS count,
+      SUM(CASE WHEN source = 'checkpoint' THEN 1 ELSE 0 END) AS checkpoint_count
+    FROM session_files WHERE session_id = ?
+  `).get(sessionId);
+  const count = Number(files?.count || 0);
+  const checkpointCount = Number(files?.checkpoint_count || 0);
   db.prepare("UPDATE sessions SET files_status = ?, files_sync_error = ? WHERE id = ?")
-    .run(count ? "stale" : "unavailable", errorCode, sessionId);
+    .run(checkpointCount ? "current" : count ? "stale" : "unavailable", errorCode, sessionId);
   return false;
 }
 
@@ -1934,6 +1940,9 @@ function markAllFileHistoryFailure(errorCode) {
   db.prepare(`
     UPDATE sessions
     SET files_status = CASE
+      WHEN EXISTS (
+        SELECT 1 FROM session_files sf WHERE sf.session_id = sessions.id AND sf.source = 'checkpoint'
+      ) THEN 'current'
       WHEN EXISTS (SELECT 1 FROM session_files sf WHERE sf.session_id = sessions.id) THEN 'stale'
       ELSE 'unavailable'
     END,
